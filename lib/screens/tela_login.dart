@@ -1,8 +1,11 @@
+import 'package:app_nextcash/services/usuario_service.dart';
 import 'package:flutter/material.dart';
 
 import 'tela_home.dart';
 import 'tela_registro.dart';
 import 'tela_rec_senha.dart';
+
+final usuarioService = UsuarioService();
 
 void main() {
   runApp(
@@ -180,7 +183,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Expanded(
           child: actionButton(
             text: 'Entrar',
-            onPressed: () {
+            onPressed: () async {
               String email = _emailController.text;
               String senha = _passwordController.text;
 
@@ -191,10 +194,20 @@ class _LoginScreenState extends State<LoginScreen> {
                 return;
               }
 
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => TelaHome()),
-              );
+              try {
+                final result = await usuarioService.login(
+                  email: email,
+                  senha: senha,
+                );
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => TelaHome()),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text(e.toString())));
+              }
             },
           ),
         ),

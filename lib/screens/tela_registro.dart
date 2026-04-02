@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:app_nextcash/services/usuario_service.dart';
+
+final usuarioService = UsuarioService();
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -52,10 +55,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             obscureText: obscureText,
             keyboardType: keyboardType,
             textInputAction: textInputAction,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-            ),
+            style: const TextStyle(color: Colors.white, fontSize: 14),
             cursorColor: brandGreen,
             decoration: InputDecoration(
               filled: true,
@@ -87,11 +87,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final double buttonWidth = (screenWidth * 0.65).clamp(160.0, 260.0);
 
       return SizedBox(
-        width: buttonWidth, // largura média (não 100%)
+        width: buttonWidth,
         height: 52,
         child: ElevatedButton(
-          onPressed: () {
-            // TODO: implementar lógica de cadastro
+          onPressed: () async {
+            String nome = _nameController.text;
+            String email = _emailController.text;
+            String senha = _passwordController.text;
+
+            if (nome.isEmpty || email.isEmpty || senha.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Preencha todos os campos")),
+              );
+              return;
+            }
+
+            try {
+              await usuarioService.cadastrar(
+                nome: nome,
+                email: email,
+                senha: senha,
+              );
+
+              Navigator.pushReplacementNamed(context, "/home");
+            } catch (e) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(e.toString())));
+            }
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: brandGreen,
@@ -104,10 +127,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
           child: const Text(
             'Cadastrar',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
         ),
       );
@@ -124,10 +144,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               Row(
                 children: [
                   IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back,
-                      color: Colors.white,
-                    ),
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
                     onPressed: () {
                       Navigator.pop(context);
                     },
@@ -193,4 +210,3 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
-

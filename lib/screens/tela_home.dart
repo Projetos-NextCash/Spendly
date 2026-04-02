@@ -3,16 +3,43 @@ import 'package:flutter/material.dart';
 import 'tela_objetivos.dart';
 import 'tela_transacao.dart';
 import 'tela_usuario.dart';
+import 'package:app_nextcash/services/usuario_service.dart';
 
 /// Tela de dashboard financeiro em tema escuro.
 ///
 /// Este arquivo pode ser usado diretamente como `home` no MaterialApp:
 /// `home: const TelaHome(),`
-class TelaHome extends StatelessWidget {
+class TelaHome extends StatefulWidget {
   const TelaHome({super.key});
 
+  @override
+  State<TelaHome> createState() => _TelaHomeState();
+}
+
+class _TelaHomeState extends State<TelaHome> {
+  String nomeUsuario = "Carregando...";
+
+  @override
+  void initState() {
+    super.initState();
+    carregarUsuario();
+  }
+
+  void carregarUsuario() async {
+    final usuarioService = UsuarioService();
+
+    final tokenData = await usuarioService.getUsuarioFromToken();
+
+    if (tokenData != null) {
+      final response = await usuarioService.buscarPorId(tokenData["id"]);
+
+      setState(() {
+        nomeUsuario = response["usuario"]["nome"] ?? "Usuário";
+      });
+    }
+  }
+
   // Valores em variáveis para facilitar manutenção.
-  static const String nomeUsuario = 'Nome';
   static const double saldoTotal = 1000.00;
   static const double despesaTotal = 560.00;
 

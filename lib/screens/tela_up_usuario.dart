@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:app_nextcash/services/usuario_service.dart';
+
+final usuarioService = UsuarioService();
 
 class TelaEditarUsuario extends StatefulWidget {
   const TelaEditarUsuario({super.key});
@@ -11,6 +14,21 @@ class _TelaEditarUsuarioState extends State<TelaEditarUsuario> {
   final TextEditingController _nomeController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _senhaController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    carregarUsuario();
+  }
+  //carrega os 
+  void carregarUsuario() async {
+    final usuario = await usuarioService.getUsuarioFromToken();
+
+    if (usuario != null) {
+      _nomeController.text = usuario["nome"] ?? "";
+      _emailController.text = usuario["email"] ?? "";
+    }
+  }
 
   @override
   void dispose() {
@@ -74,7 +92,6 @@ class _TelaEditarUsuarioState extends State<TelaEditarUsuario> {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
             children: [
-
               /// topo
               Row(
                 children: [
@@ -89,16 +106,13 @@ class _TelaEditarUsuarioState extends State<TelaEditarUsuario> {
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
                     ),
-                  )
+                  ),
                 ],
               ),
 
               const SizedBox(height: 30),
 
-              campo(
-                label: "Nome",
-                controller: _nomeController,
-              ),
+              campo(label: "Nome", controller: _nomeController),
 
               const SizedBox(height: 18),
 
@@ -122,12 +136,39 @@ class _TelaEditarUsuarioState extends State<TelaEditarUsuario> {
                 width: 220,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     final nome = _nomeController.text;
                     final email = _emailController.text;
                     final senha = _senhaController.text;
 
-                    // salvar dados
+                    try {
+                      // pega usuário logado
+                      final usuario = await usuarioService
+                          .getUsuarioFromToken();
+
+                      if (usuario == null) {
+                        throw Exception("Usuário não autenticado");
+                      }
+
+                      await usuarioService.atualizar(
+                        id: usuario["id"],
+                        nome: nome.isEmpty ? null : nome,
+                        email: email.isEmpty ? null : email,
+                        senha: senha.isEmpty ? null : senha,
+                      );
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Usuário atualizado com sucesso"),
+                        ),
+                      );
+
+                      Navigator.pop(context);
+                    } catch (e) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(e.toString())));
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: verde,
@@ -138,9 +179,7 @@ class _TelaEditarUsuarioState extends State<TelaEditarUsuario> {
                   ),
                   child: const Text(
                     "Salvar alterações",
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
