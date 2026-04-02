@@ -1,4 +1,6 @@
+import 'package:app_nextcash/screens/tela_login.dart';
 import 'package:flutter/material.dart';
+
 
 class TelaRecsenha extends StatefulWidget {
   const TelaRecsenha({super.key});
@@ -72,7 +74,7 @@ class _TelaRecsenhaState extends State<TelaRecsenha> {
         width: 220,
         height: 52,
         child: ElevatedButton(
-          onPressed: () {
+          onPressed: () async{
             final email = _emailController.text;
             final senha = _novaSenhaController.text;
             final confirmar = _confirmarSenhaController.text;
@@ -85,6 +87,21 @@ class _TelaRecsenhaState extends State<TelaRecsenha> {
               );
               return;
             }
+
+            try {
+                final result = await usuarioService.recuperarSenha(
+                  email: email,
+                  senha: senha,
+                );
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => LoginScreen()),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text(e.toString())));
+              }
 
             // lógica recuperar senha aqui
           },
