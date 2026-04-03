@@ -4,11 +4,9 @@ import 'tela_objetivos.dart';
 import 'tela_transacao.dart';
 import 'tela_usuario.dart';
 import 'package:app_nextcash/services/usuario_service.dart';
+import 'package:app_nextcash/services/transacao_service.dart';
+import 'tela_extrato.dart';
 
-/// Tela de dashboard financeiro em tema escuro.
-///
-/// Este arquivo pode ser usado diretamente como `home` no MaterialApp:
-/// `home: const TelaHome(),`
 class TelaHome extends StatefulWidget {
   const TelaHome({super.key});
 
@@ -19,10 +17,66 @@ class TelaHome extends StatefulWidget {
 class _TelaHomeState extends State<TelaHome> {
   String nomeUsuario = "Carregando...";
 
+  void carregarTransacoes() async {
+    final usuarioService = UsuarioService();
+    final tokenData = await usuarioService.getUsuarioFromToken();
+
+    if (tokenData == null) return;
+
+    final idUsuario = tokenData["id"];
+    final transacaoService = TransacaoService();
+    final response = await transacaoService.listarTransacoes(idUsuario);
+
+    final transacoes = response["transacoes"] ?? [];
+
+    double saldo = 0;
+    double despesas = 0;
+
+    List<_DespesaRecente> lista = [];
+
+    for (var t in transacoes) {
+      double valor = (t["valor"] as num).toDouble();
+
+      saldo += valor;
+
+      if (valor < 0) {
+        despesas += valor.abs();
+      }
+    }
+
+    // últimas 5
+    for (var t in transacoes.reversed.take(5)) {
+      final dataApi = DateTime.parse(
+        t["data_transacao"],
+      ).toLocal(); // <- IMPORTANTE
+
+      final dataFormatada =
+          "${dataApi.day.toString().padLeft(2, '0')}/"
+          "${dataApi.month.toString().padLeft(2, '0')}/"
+          "${dataApi.year}";
+
+      lista.add(
+        _DespesaRecente(
+          id: t["id"].toString(),
+          nome: t["categoria"],
+          valor: (t["valor"] as num).toDouble(),
+          data: dataFormatada,
+        ),
+      );
+    }
+
+    setState(() {
+      saldoTotal = saldo;
+      despesaTotal = despesas;
+      despesasRecentes = lista; // <- isso limpa corretamente
+    });
+  }
+
   @override
   void initState() {
     super.initState();
     carregarUsuario();
+    carregarTransacoes();
   }
 
   void carregarUsuario() async {
@@ -40,14 +94,10 @@ class _TelaHomeState extends State<TelaHome> {
   }
 
   // Valores em variáveis para facilitar manutenção.
-  static const double saldoTotal = 1000.00;
-  static const double despesaTotal = 560.00;
+  double saldoTotal = 0;
+  double despesaTotal = 0;
 
-  static const List<_DespesaRecente> despesasRecentes = <_DespesaRecente>[
-    _DespesaRecente(nome: 'Mercado', valor: 350.00, data: 'Hoje'),
-    _DespesaRecente(nome: 'Transporte', valor: 120.00, data: 'Ontem'),
-    _DespesaRecente(nome: 'Academia', valor: 90.00, data: '24/Fev'),
-  ];
+  List<_DespesaRecente> despesasRecentes = <_DespesaRecente>[];
 
   String _formatarReal(double valor) {
     final String comDuasCasas = valor.toStringAsFixed(2).replaceAll('.', ',');
@@ -125,19 +175,28 @@ class _TelaHomeState extends State<TelaHome> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                ...despesasRecentes.map(
-                  (item) => Padding(
+                ...despesasRecentes.map((item) {
+                  final bool isDespesa = item.valor < 0;
+
+                  return Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: ItemDespesa(
                       nome: item.nome,
-                      valorTexto: '-${_formatarReal(item.valor)}',
+                      valorTexto: isDespesa
+                          ? '-${_formatarReal(item.valor.abs())}'
+                          : _formatarReal(item.valor),
                       data: item.data,
                       corNome: textoPrincipal,
                       corMeta: textoSecundario,
-                      corValor: vermelhoDespesa,
+                      corValor: isDespesa ? vermelhoDespesa : Colors.green,
+                      onDelete: () async {
+                        final transacaoService = TransacaoService();
+                        await transacaoService.apagarTransacao(item.id);
+                        carregarTransacoes();
+                      },
                     ),
-                  ),
-                ),
+                  );
+                }),
                 const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -146,13 +205,14 @@ class _TelaHomeState extends State<TelaHome> {
                       icone: Icons.add,
                       texto: 'Novo',
                       corCirculo: verde,
-                      onTap: () {
-                        Navigator.push(
+                      onTap: () async {
+                        await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => const TelaTransacao(),
                           ),
                         );
+                        carregarTransacoes();
                       },
                     ),
                     SizedBox(width: 18),
@@ -174,6 +234,16 @@ class _TelaHomeState extends State<TelaHome> {
                       icone: Icons.receipt_long,
                       texto: 'Extrato',
                       corCirculo: amarelo,
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const TelaExtrato(),
+                          ),
+                        );
+
+                        carregarTransacoes();
+                      },
                     ),
                   ],
                 ),
@@ -294,6 +364,7 @@ class ItemDespesa extends StatelessWidget {
     required this.corNome,
     required this.corMeta,
     required this.corValor,
+    required this.onDelete,
   });
 
   final String nome;
@@ -302,6 +373,7 @@ class ItemDespesa extends StatelessWidget {
   final Color corNome;
   final Color corMeta;
   final Color corValor;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -324,6 +396,7 @@ class ItemDespesa extends StatelessWidget {
               ),
             ),
           ),
+
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -338,6 +411,13 @@ class ItemDespesa extends StatelessWidget {
               const SizedBox(height: 2),
               Text(data, style: TextStyle(color: corMeta, fontSize: 12)),
             ],
+          ),
+
+          const SizedBox(width: 8),
+
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+            onPressed: onDelete,
           ),
         ],
       ),
@@ -391,11 +471,13 @@ class BotaoAcao extends StatelessWidget {
 
 class _DespesaRecente {
   const _DespesaRecente({
+    required this.id,
     required this.nome,
     required this.valor,
     required this.data,
   });
 
+  final String id;
   final String nome;
   final double valor;
   final String data;

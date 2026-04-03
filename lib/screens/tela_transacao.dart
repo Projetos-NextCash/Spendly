@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
+import 'tela_home.dart';
+import '/services/transacao_service.dart';
+import 'package:app_nextcash/services/usuario_service.dart';
 
 /// Tela de cadastro de transações financeiras com tema escuro.
-///
-/// Para testar rapidamente:
-/// - importe este arquivo no seu `main.dart`
-/// - use `home: const TelaTransacao()`
 class TelaTransacao extends StatefulWidget {
   const TelaTransacao({super.key});
 
@@ -14,12 +13,25 @@ class TelaTransacao extends StatefulWidget {
 
 class _TelaTransacaoState extends State<TelaTransacao> {
   // Variáveis de estado para facilitar manutenção.
-  final TextEditingController _valorController =
-      TextEditingController(text: 'R\$ 1000,00');
+  final TextEditingController _valorController = TextEditingController();
   final TextEditingController _descricaoController = TextEditingController();
+  final TextEditingController _novaCategoriaController =
+      TextEditingController();
 
   String _tipoSelecionado = 'Receita';
   String _categoriaSelecionada = 'Alimentação';
+  String _dataAtual = "";
+
+  @override
+  void initState() {
+    super.initState();
+
+    final agora = DateTime.now();
+    _dataAtual =
+        "${agora.day.toString().padLeft(2, '0')}/"
+        "${agora.month.toString().padLeft(2, '0')}/"
+        "${agora.year}";
+  }
 
   final List<String> _categorias = <String>[
     'Alimentação',
@@ -34,6 +46,7 @@ class _TelaTransacaoState extends State<TelaTransacao> {
   void dispose() {
     _valorController.dispose();
     _descricaoController.dispose();
+    _novaCategoriaController.dispose();
     super.dispose();
   }
 
@@ -70,12 +83,20 @@ class _TelaTransacaoState extends State<TelaTransacao> {
                 CampoValor(
                   controller: _valorController,
                   corFundo: cinzaCampo,
+                  isDespesa: _tipoSelecionado == 'Despesa',
                 ),
                 const SizedBox(height: 18),
                 CampoDescricao(
                   controller: _descricaoController,
                   corFundo: cinzaCampo,
                 ),
+
+                const SizedBox(height: 10),
+                Text(
+                  "Data: $_dataAtual",
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+
                 const SizedBox(height: 18),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -106,13 +127,78 @@ class _TelaTransacaoState extends State<TelaTransacao> {
                     ),
                   ],
                 ),
+                if (_categoriaSelecionada == 'Outros') ...[
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _novaCategoriaController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: "Digite nova categoria",
+                      hintStyle: const TextStyle(color: Colors.grey),
+                      filled: true,
+                      fillColor: cinzaCampo,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 30),
                 Center(
                   child: BotaoSalvar(
                     texto: 'Salvar',
                     corFundo: verde,
-                    onPressed: () {
-                      // TODO: integrar com persistência ou API.
+                    onPressed: () async {
+                      final usuarioService = UsuarioService();
+                      final usuario = await usuarioService
+                          .getUsuarioFromToken();
+                      final idUsuario = usuario?['id'];
+
+                      final transacaoService = TransacaoService();
+
+                      String valor = _valorController.text
+                          .replaceAll('.', '')
+                          .replaceAll(',', '.');
+
+                      if (_tipoSelecionado == 'Despesa') {
+                        valor = "-$valor";
+                      }
+
+                      String descricao = _descricaoController.text;
+
+                      String categoriaFinal = _categoriaSelecionada;
+
+                      if (_categoriaSelecionada == 'Outros' &&
+                          _novaCategoriaController.text.isNotEmpty) {
+                        categoriaFinal = _novaCategoriaController.text;
+                      }
+
+                      // ISO 8601
+                      final agora = DateTime.now();
+                      final dataTransacao = agora.toIso8601String();
+
+                      print("DATA ISO: $dataTransacao");
+
+                      try {
+                        await transacaoService.criarTransacao(
+                          valor: valor,
+                          descricao: descricao,
+                          tipo: _tipoSelecionado,
+                          categoria: categoriaFinal,
+                          dataTransacao: dataTransacao,
+                          idUsuario: idUsuario,
+                        );
+
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (context) => TelaHome()),
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text(e.toString())));
+                      }
                     },
                   ),
                 ),
@@ -133,10 +219,7 @@ class _BackButtonHeader extends StatelessWidget {
     return IconButton(
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints(),
-      icon: const Icon(
-        Icons.arrow_back,
-        color: Colors.white,
-      ),
+      icon: const Icon(Icons.arrow_back, color: Colors.white),
       onPressed: () {
         Navigator.pop(context);
       },
@@ -149,10 +232,12 @@ class CampoValor extends StatelessWidget {
     super.key,
     required this.controller,
     required this.corFundo,
+    required this.isDespesa,
   });
 
   final TextEditingController controller;
   final Color corFundo;
+  final bool isDespesa;
 
   @override
   Widget build(BuildContext context) {
@@ -170,25 +255,39 @@ class CampoValor extends StatelessWidget {
         const SizedBox(height: 8),
         TextField(
           controller: controller,
-          style: const TextStyle(
-            color: Colors.white,
+          keyboardType: TextInputType.number,
+          style: TextStyle(
+            color: isDespesa ? Colors.red : Colors.white,
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
           cursorColor: const Color(0xFF00CC44),
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: (value) {
+            String numbers = value.replaceAll(RegExp(r'[^0-9]'), '');
+
+            if (numbers.isEmpty) {
+              controller.text = '';
+              return;
+            }
+
+            double valor = double.parse(numbers) / 100;
+
+            controller.text = valor.toStringAsFixed(2).replaceAll('.', ',');
+
+            controller.selection = TextSelection.fromPosition(
+              TextPosition(offset: controller.text.length),
+            );
+          },
           decoration: InputDecoration(
+            hintText: '0,00',
+            hintStyle: const TextStyle(color: Colors.grey),
             filled: true,
             fillColor: corFundo,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 14,
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
+            border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
@@ -226,10 +325,7 @@ class CampoDescricao extends StatelessWidget {
         TextField(
           controller: controller,
           maxLines: 5,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-          ),
+          style: const TextStyle(color: Colors.white, fontSize: 14),
           cursorColor: const Color(0xFF00CC44),
           decoration: InputDecoration(
             filled: true,
@@ -335,10 +431,7 @@ class _TipoRadioTile extends StatelessWidget {
           ),
           Text(
             titulo,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-            ),
+            style: const TextStyle(color: Colors.white, fontSize: 14),
           ),
         ],
       ),
@@ -385,7 +478,10 @@ class DropdownCategoria extends StatelessWidget {
               value: categoriaAtual,
               isExpanded: true,
               dropdownColor: const Color(0xFF2A2A2A),
-              icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white70),
+              icon: const Icon(
+                Icons.keyboard_arrow_down,
+                color: Colors.white70,
+              ),
               style: const TextStyle(color: Colors.white, fontSize: 14),
               items: categorias
                   .map(
@@ -437,13 +533,9 @@ class BotaoSalvar extends StatelessWidget {
         ),
         child: Text(
           texto,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
     );
   }
 }
-
