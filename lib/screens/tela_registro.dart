@@ -1,3 +1,4 @@
+import 'package:app_nextcash/screens/tela_home.dart';
 import 'package:flutter/material.dart';
 import 'package:app_nextcash/services/usuario_service.dart';
 
@@ -109,7 +110,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 senha: senha,
               );
 
-              Navigator.pushReplacementNamed(context, "/home");
+              // 🔥 login automático após cadastro
+              await usuarioService.login(email: email, senha: senha);
+
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => TelaHome()),
+                (route) => false,
+              );
             } catch (e) {
               ScaffoldMessenger.of(
                 context,

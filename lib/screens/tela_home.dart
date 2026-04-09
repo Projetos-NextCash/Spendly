@@ -17,6 +17,17 @@ class TelaHome extends StatefulWidget {
 class _TelaHomeState extends State<TelaHome> {
   String nomeUsuario = "Carregando...";
 
+  Future<void> carregarUsuario() async {
+  final usuarioService = UsuarioService();
+  final usuario = await usuarioService.getUsuarioFromToken();
+
+  if (usuario == null) return;
+
+  setState(() {
+    nomeUsuario = usuario["nome"];
+  });
+}
+
   void carregarTransacoes() async {
     final usuarioService = UsuarioService();
     final tokenData = await usuarioService.getUsuarioFromToken();
@@ -77,20 +88,6 @@ class _TelaHomeState extends State<TelaHome> {
     super.initState();
     carregarUsuario();
     carregarTransacoes();
-  }
-
-  void carregarUsuario() async {
-    final usuarioService = UsuarioService();
-
-    final tokenData = await usuarioService.getUsuarioFromToken();
-
-    if (tokenData != null) {
-      final response = await usuarioService.buscarPorId(tokenData["id"]);
-
-      setState(() {
-        nomeUsuario = response["usuario"]["nome"] ?? "Usuário";
-      });
-    }
   }
 
   // Valores em variáveis para facilitar manutenção.

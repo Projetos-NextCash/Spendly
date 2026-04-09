@@ -19,23 +19,22 @@ class _TelaUsuarioState extends State<TelaUsuario> {
   String nome = "Carregando...";
   String email = "";
 
+   Future<void> carregarUsuario() async {
+  final usuarioService = UsuarioService();
+  final usuario = await usuarioService.getUsuarioFromToken();
+
+  if (usuario == null) return;
+
+  setState(() {
+    nome = usuario["nome"];
+    email = usuario["email"];
+  });
+}
+
   @override
   void initState() {
     super.initState();
     carregarUsuario();
-  }
-
-  void carregarUsuario() async {
-    final tokenData = await usuarioService.getUsuarioFromToken();
-
-    if (tokenData != null) {
-      final response = await usuarioService.buscarPorId(tokenData["id"]);
-
-      setState(() {
-        nome = response["usuario"]["nome"] ?? "Usuário";
-        email = response["usuario"]["email"] ?? "";
-      });
-    }
   }
 
   @override
