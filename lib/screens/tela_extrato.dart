@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:app_nextcash/services/transacao_service.dart';
 import 'package:app_nextcash/services/usuario_service.dart';
 
@@ -12,9 +13,17 @@ class TelaExtrato extends StatefulWidget {
 class _TelaExtratoState extends State<TelaExtrato> {
   List<Map<String, dynamic>> transacoes = [];
   List<Map<String, dynamic>> transacoesFiltradas = [];
+  bool carregando = true;
 
-  String? filtroTipo; // receita / despesa
+  String? filtroTipo;
   int? filtroMes;
+
+  final Color corVerdeApp = const Color(0xFF00C853);
+
+  final Map<int, String> nomesMeses = {
+    1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr", 5: "Mai", 6: "Jun",
+    7: "Jul", 8: "Ago", 9: "Set", 10: "Out", 11: "Nov", 12: "Dez"
+  };
 
   @override
   void initState() {
@@ -22,293 +31,192 @@ class _TelaExtratoState extends State<TelaExtrato> {
     carregarExtrato();
   }
 
-  void abrirEditarTransacao(Map<String, dynamic> t) {
-    final valorController = TextEditingController(
-      text: t["valor"].abs().toStringAsFixed(2).replaceAll('.', ','),
-    );
+  Future<void> carregarExtrato() async {
+    setState(() => carregando = true);
+    try {
+      final usuarioService = UsuarioService();
+      final token = await usuarioService.getUsuarioFromToken();
+      if (token == null) return;
 
-    final descricaoController = TextEditingController(
-      text: t["descricao"] ?? "",
-    );
+      final idUsuario = token["id"];
+      final response = await TransacaoService().listarTransacoes(idUsuario);
+      final List<dynamic> raw = response["transacoes"] ?? [];
 
-    final novaCategoriaController = TextEditingController();
+      final lista = raw.map((t) {
+        return {
+          "id": t["id"].toString(),
+          "categoria": t["categoria"],
+          "descricao": t["descricao"] ?? "",
+          "valor": (t["valor"] as num).toDouble(),
+          "data": DateTime.parse(t["data_transacao"]).toLocal(),
+        };
+      }).toList();
 
-    String tipoSelecionado = t["valor"] < 0 ? "Despesa" : "Receita";
-    String categoriaSelecionada = t["categoria"];
-
-    const cinzaCampo = Color(0xFF2A2A2A);
-    const verde = Color(0xFF00CC44);
-
-    final categorias = [
-      'Alimentação',
-      'Transporte',
-      'Saúde',
-      'Lazer',
-      'Moradia',
-      'Outros',
-    ];
-
-    if (!categorias.contains(categoriaSelecionada)) {
-      categorias.add(categoriaSelecionada);
+      setState(() {
+        transacoes = lista.reversed.toList();
+        aplicarFiltros();
+      });
+    } finally {
+      setState(() => carregando = false);
     }
+  }
 
-    showDialog(
+  // --- ✏️ LÓGICA DE EDIÇÃO PADRONIZADA (ESTILO BANCO) ---
+  Future<void> _abrirEdicao(Map<String, dynamic> t) async {
+    double valorInicial = (t["valor"] as double).abs();
+    final descController = TextEditingController(text: t["descricao"]);
+    final catController = TextEditingController(text: t["categoria"]);
+    final valorController = TextEditingController(
+      text: NumberFormat.currency(symbol: "R\$", locale: "pt_BR").format(valorInicial)
+    );
+    
+    double valorNumericoAtual = valorInicial;
+    String tipoOriginal = (t["valor"] as double) < 0 ? "Despesa" : "Receita";
+
+    await showDialog(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return Dialog(
-              backgroundColor: const Color(0xFF0B0B0B),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Editar Transação",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setPopupState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text("Editar Lançamento", style: TextStyle(fontWeight: FontWeight.bold)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text("Valor", style: TextStyle(color: Colors.grey, fontSize: 13)),
+                TextField(
+                  controller: valorController,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  cursorColor: corVerdeApp,
+                  style: TextStyle(
+                    fontSize: 28, 
+                    fontWeight: FontWeight.w800, 
+                    color: tipoOriginal == "Despesa" ? Colors.redAccent : corVerdeApp
+                  ),
+                  onChanged: (value) {
+                    String cleanString = value.replaceAll(RegExp(r'[^0-9]'), '');
+                    if (cleanString.isEmpty) cleanString = '0';
+                    double valor = double.parse(cleanString) / 100;
+                    valorNumericoAtual = valor;
+                    
+                    setPopupState(() {
+                      valorController.value = TextEditingValue(
+                        text: NumberFormat.currency(symbol: "R\$", locale: "pt_BR").format(valor),
+                        selection: TextSelection.collapsed(
+                          offset: NumberFormat.currency(symbol: "R\$", locale: "pt_BR").format(valor).length
                         ),
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      // VALOR
-                      TextField(
-                        controller: valorController,
-                        keyboardType: TextInputType.number,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          labelText: "Valor",
-                          labelStyle: const TextStyle(color: Colors.grey),
-                          filled: true,
-                          fillColor: cinzaCampo,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      // DESCRIÇÃO
-                      TextField(
-                        controller: descricaoController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          labelText: "Descrição",
-                          labelStyle: const TextStyle(color: Colors.grey),
-                          filled: true,
-                          fillColor: cinzaCampo,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      // TIPO
-                      DropdownButtonFormField<String>(
-                        value: tipoSelecionado,
-                        dropdownColor: const Color(0xFF0B0B0B),
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: cinzaCampo,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: "Receita",
-                            child: Text("Receita"),
-                          ),
-                          DropdownMenuItem(
-                            value: "Despesa",
-                            child: Text("Despesa"),
-                          ),
-                        ],
-                        onChanged: (v) {
-                          setStateDialog(() {
-                            tipoSelecionado = v!;
-                          });
-                        },
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      // CATEGORIA
-                      DropdownButtonFormField<String>(
-                        value: categoriaSelecionada,
-                        dropdownColor: const Color(0xFF0B0B0B),
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: cinzaCampo,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                        items: categorias.map((c) {
-                          return DropdownMenuItem(value: c, child: Text(c));
-                        }).toList(),
-                        onChanged: (v) {
-                          setStateDialog(() {
-                            categoriaSelecionada = v!;
-                          });
-                        },
-                      ),
-
-                      if (categoriaSelecionada == "Outros") ...[
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: novaCategoriaController,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            hintText: "Nova categoria",
-                            filled: true,
-                            fillColor: cinzaCampo,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                          ),
-                        ),
-                      ],
-
-                      const SizedBox(height: 20),
-
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text(
-                                "Cancelar",
-                                style: TextStyle(color: Colors.grey),
-                              ),
-                            ),
-                          ),
-
-                          Expanded(
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: verde,
-                              ),
-                              onPressed: () async {
-                                final service = TransacaoService();
-
-                                String valor = valorController.text
-                                    .replaceAll('.', '')
-                                    .replaceAll(',', '.');
-
-                                if (tipoSelecionado == "Despesa") {
-                                  valor = "-$valor";
-                                }
-
-                                String categoriaFinal = categoriaSelecionada;
-
-                                if (categoriaSelecionada == "Outros" &&
-                                    novaCategoriaController.text.isNotEmpty) {
-                                  categoriaFinal = novaCategoriaController.text;
-                                }
-
-                                await service.atualizarTransacao(
-                                  id: t["id"].toString(),
-                                  valor: valor,
-                                  descricao: descricaoController.text,
-                                  categoria: categoriaFinal,
-                                  tipo: tipoSelecionado,
-                                );
-
-                                Navigator.pop(context);
-                                carregarExtrato();
-                              },
-                              child: const Text("Salvar"),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                      );
+                    });
+                  },
+                  decoration: const InputDecoration(border: InputBorder.none),
+                ),
+                const Divider(),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: catController,
+                  cursorColor: corVerdeApp,
+                  decoration: InputDecoration(
+                    labelText: "Categoria",
+                    labelStyle: TextStyle(color: Colors.grey[600]),
+                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: corVerdeApp)),
                   ),
                 ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: descController,
+                  cursorColor: corVerdeApp,
+                  decoration: InputDecoration(
+                    labelText: "Descrição",
+                    labelStyle: TextStyle(color: Colors.grey[600]),
+                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: corVerdeApp)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: corVerdeApp,
+                foregroundColor: Colors.black,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-            );
-          },
-        );
-      },
+              onPressed: () async {
+                try {
+                  await TransacaoService().atualizarTransacao(
+                    id: t["id"],
+                    descricao: descController.text,
+                    valor: valorNumericoAtual.toString(),
+                    categoria: catController.text,
+                    tipo: tipoOriginal,
+                  );
+
+                  if (mounted) {
+                    Navigator.pop(ctx);
+                    carregarExtrato();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Alterações salvas!")),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Erro ao salvar alterações")),
+                    );
+                  }
+                }
+              },
+              child: const Text("Confirmar", style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  Future<void> carregarExtrato() async {
-    final usuarioService = UsuarioService();
-    final token = await usuarioService.getUsuarioFromToken();
+  // --- 🗑️ LÓGICA DE APAGAR ---
+  Future<void> _confirmarExclusao(String id) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text("Excluir"),
+        content: const Text("Deseja apagar esta transação permanentemente?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancelar")),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Apagar", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
 
-    if (token == null) return;
-
-    final idUsuario = token["id"];
-    final service = TransacaoService();
-    final response = await service.listarTransacoes(idUsuario);
-
-    final List<dynamic> transacoesRaw = response["transacoes"] ?? [];
-
-    List<Map<String, dynamic>> lista = [];
-
-    for (var t in transacoesRaw) {
-      final data = DateTime.parse(t["data_transacao"]).toLocal();
-      final valor = (t["valor"] as num).toDouble();
-
-      lista.add({
-        "id": t["id"],
-        "categoria": t["categoria"],
-        "descricao": t["descricao"],
-        "valor": valor,
-        "data": data,
-      });
+    if (confirmar == true) {
+      final res = await TransacaoService().apagarTransacao(id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res["message"])));
+        carregarExtrato();
+      }
     }
-
-    // ORDEM MAIS RECENTE PRIMEIRO (igual home)
-    lista = lista.reversed.toList();
-
-    setState(() {
-      transacoes = lista;
-      aplicarFiltros();
-    });
   }
 
   void aplicarFiltros() {
     List<Map<String, dynamic>> lista = [...transacoes];
-
-    // filtro tipo
     if (filtroTipo != null) {
-      if (filtroTipo == "receita") {
-        lista = lista.where((t) => t["valor"] > 0).toList();
-      } else {
-        lista = lista.where((t) => t["valor"] < 0).toList();
-      }
+      lista = lista.where((t) => filtroTipo == "receita" ? t["valor"] > 0 : t["valor"] < 0).toList();
     }
-
-    // filtro mes
     if (filtroMes != null) {
       lista = lista.where((t) => t["data"].month == filtroMes).toList();
     }
-
-    setState(() {
-      transacoesFiltradas = lista;
-    });
+    setState(() => transacoesFiltradas = lista);
   }
 
   void limparFiltros() {
@@ -319,212 +227,155 @@ class _TelaExtratoState extends State<TelaExtrato> {
     });
   }
 
-  String _formatarValor(double v) {
-    return "R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}";
-  }
-
-  String _formatarData(DateTime data) {
-    final dia = data.day.toString().padLeft(2, '0');
-    final mes = data.month.toString().padLeft(2, '0');
-    return "$dia/$mes";
-  }
-
-  void _deletarTransacao(String id) async {
-    final service = TransacaoService();
-    await service.apagarTransacao(id);
-    carregarExtrato();
-  }
+  String _formatarValor(double v) => "R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}";
+  String _formatarData(DateTime d) => "${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}";
 
   @override
   Widget build(BuildContext context) {
-    const fundo = Color(0xFF0B0B0B);
-    const branco = Colors.white;
-    const cinza = Color(0xFFBDBDBD);
-    const vermelho = Color(0xFFD64545);
-    const verde = Color(0xFF00CC44);
+    final tema = Theme.of(context);
+    final textoPrincipal = tema.textTheme.bodyLarge?.color;
+    final textoSecundario = tema.textTheme.bodyMedium?.color;
 
     return Scaffold(
-      backgroundColor: fundo,
+      backgroundColor: tema.scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(icon: Icon(Icons.arrow_back, color: textoPrincipal), onPressed: () => Navigator.pop(context)),
+        title: Text("Movimentações", style: TextStyle(color: textoPrincipal, fontWeight: FontWeight.bold)),
+        centerTitle: true,
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _buildBarraFiltros(tema, textoPrincipal),
               const SizedBox(height: 20),
-
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back, color: branco),
-                  ),
-                  const Text(
-                    "Extrato",
-                    style: TextStyle(
-                      color: branco,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 10),
-
-              // FILTROS
-              Row(
-                children: [
-                  // filtro tipo
-                  DropdownButton<String>(
-                    dropdownColor: fundo,
-                    hint: const Text("Tipo", style: TextStyle(color: branco)),
-                    value: filtroTipo,
-                    items: const [
-                      DropdownMenuItem(
-                        value: "receita",
-                        child: Text("Receita", style: TextStyle(color: branco)),
-                      ),
-                      DropdownMenuItem(
-                        value: "despesa",
-                        child: Text("Despesa", style: TextStyle(color: branco)),
-                      ),
-                    ],
-                    onChanged: (v) {
-                      filtroTipo = v;
-                      aplicarFiltros();
-                    },
-                  ),
-
-                  const SizedBox(width: 20),
-
-                  // filtro mes
-                  DropdownButton<int>(
-                    dropdownColor: fundo,
-                    hint: const Text("Mês", style: TextStyle(color: branco)),
-                    value: filtroMes,
-                    items: List.generate(12, (index) {
-                      final mes = index + 1;
-                      return DropdownMenuItem(
-                        value: mes,
-                        child: Text(
-                          mes.toString().padLeft(2, '0'),
-                          style: const TextStyle(color: branco),
-                        ),
-                      );
-                    }),
-                    onChanged: (v) {
-                      filtroMes = v;
-                      aplicarFiltros();
-                    },
-                  ),
-
-                  const Spacer(),
-
-                  // limpar filtros
-                  TextButton(
-                    onPressed: limparFiltros,
-                    child: const Text(
-                      "Limpar",
-                      style: TextStyle(color: Colors.red),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 10),
-
               Expanded(
-                child: ListView.builder(
-                  itemCount: transacoesFiltradas.length,
-                  itemBuilder: (context, index) {
-                    final t = transacoesFiltradas[index];
-                    final valor = t["valor"] as double;
-
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      _formatarData(t["data"]),
-                                      style: const TextStyle(
-                                        color: cinza,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                    Text(
-                                      t["categoria"],
-                                      style: const TextStyle(
-                                        color: branco,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    Text(
-                                      t["descricao"] ?? "",
-                                      style: const TextStyle(
-                                        color: Colors.white54,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              Row(
-                                children: [
-                                  Text(
-                                    "${valor < 0 ? '-' : '+'}${_formatarValor(valor.abs())}",
-                                    style: TextStyle(
-                                      color: valor < 0 ? vermelho : verde,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-
-                                  const SizedBox(width: 6),
-
-                                  // BOTÃO EDITAR
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.edit,
-                                      color: Colors.white,
-                                      size: 20,
-                                    ),
-                                    onPressed: () => abrirEditarTransacao(t),
-                                  ),
-
-                                  // BOTÃO DELETE
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.delete,
-                                      color: vermelho,
-                                      size: 20,
-                                    ),
-                                    onPressed: () =>
-                                        _deletarTransacao(t["id"].toString()),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-
-                          const Divider(color: Colors.white10, thickness: 1),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+                child: carregando
+                    ? Center(child: CircularProgressIndicator(color: corVerdeApp))
+                    : transacoesFiltradas.isEmpty
+                        ? _buildEmptyState(textoSecundario)
+                        : _buildLista(tema, textoPrincipal, textoSecundario),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBarraFiltros(ThemeData tema, Color? textoPrincipal) {
+    return Row(
+      children: [
+        _FiltroDropdown<String>(
+          value: filtroTipo,
+          hint: "Tipo",
+          items: const [
+            DropdownMenuItem(value: "receita", child: Text("Entradas")),
+            DropdownMenuItem(value: "despesa", child: Text("Saídas")),
+          ],
+          onChanged: (v) { setState(() => filtroTipo = v); aplicarFiltros(); },
+        ),
+        const SizedBox(width: 10),
+        _FiltroDropdown<int>(
+          value: filtroMes,
+          hint: "Mês",
+          items: nomesMeses.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
+          onChanged: (v) { setState(() => filtroMes = v); aplicarFiltros(); },
+        ),
+        const Spacer(),
+        if (filtroTipo != null || filtroMes != null)
+          IconButton(onPressed: limparFiltros, icon: const Icon(Icons.filter_alt_off, color: Colors.redAccent)),
+      ],
+    );
+  }
+
+  Widget _buildLista(ThemeData tema, Color? textoPrincipal, Color? textoSecundario) {
+    return ListView.separated(
+      itemCount: transacoesFiltradas.length,
+      separatorBuilder: (_, __) => Divider(color: textoSecundario!.withOpacity(0.08)),
+      itemBuilder: (context, index) {
+        final t = transacoesFiltradas[index];
+        final valor = t["valor"] as double;
+        final isDespesa = valor < 0;
+
+        return ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(t["categoria"], style: TextStyle(color: textoPrincipal, fontWeight: FontWeight.bold)),
+          subtitle: Text("${t["descricao"]}\n${_formatarData(t["data"])}", style: TextStyle(color: textoSecundario, fontSize: 12)),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "${isDespesa ? '-' : '+'}${_formatarValor(valor.abs())}",
+                style: TextStyle(
+                  color: isDespesa ? Colors.redAccent : corVerdeApp, 
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15
+                ),
+              ),
+              const SizedBox(width: 8),
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert, size: 22, color: textoSecundario),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                onSelected: (cmd) {
+                  if (cmd == 'edit') _abrirEdicao(t);
+                  if (cmd == 'delete') _confirmarExclusao(t["id"]);
+                },
+                itemBuilder: (ctx) => [
+                  const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit, size: 18), SizedBox(width: 8), Text("Editar")])),
+                  const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete, color: Colors.red, size: 18), SizedBox(width: 8), Text("Excluir", style: TextStyle(color: Colors.red))])),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState(Color? textoSecundario) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.receipt_long_outlined, color: textoSecundario?.withOpacity(0.2), size: 70),
+          const SizedBox(height: 16),
+          Text("Nenhuma movimentação", style: TextStyle(color: textoSecundario, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+}
+
+class _FiltroDropdown<T> extends StatelessWidget {
+  final T? value;
+  final String hint;
+  final List<DropdownMenuItem<T>> items;
+  final Function(T?) onChanged;
+
+  const _FiltroDropdown({required this.value, required this.hint, required this.items, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final isDark = tema.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.grey[200],
+        borderRadius: BorderRadius.circular(10)
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: value,
+          hint: Text(hint, style: const TextStyle(fontSize: 14)),
+          dropdownColor: isDark ? const Color(0xFF2B2B2B) : Colors.white,
+          items: items,
+          onChanged: onChanged,
         ),
       ),
     );

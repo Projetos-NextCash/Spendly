@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:app_nextcash/services/objetivo_service.dart';
+import 'package:app_nextcash/services/usuario_service.dart';
+import 'package:app_nextcash/services/transacao_service.dart';
 
-/// Tela de cadastro de objetivo financeiro em tema escuro.
-///
-/// Para usar rapidamente no app:
-/// `home: const TelaObjetivos(),`
 class TelaObjetivos extends StatefulWidget {
   const TelaObjetivos({super.key});
 
@@ -12,335 +12,352 @@ class TelaObjetivos extends StatefulWidget {
 }
 
 class _TelaObjetivosState extends State<TelaObjetivos> {
-  // Variáveis para facilitar manutenção e futuras integrações.
-  final TextEditingController _valorController =
-      TextEditingController(text: 'R\$ 0,00');
-  final TextEditingController _descricaoController = TextEditingController();
-  final TextEditingController _dataInicioController =
-      TextEditingController(text: '01/03/2026');
-  final TextEditingController _dataLimiteController =
-      TextEditingController(text: '30/12/2026');
+  List<dynamic> _objetivos = [];
+  double _saldoCalculado = 0.0;
+  bool _carregando = true;
+  String _filtroAtual = 'Todos';
+
+  final Color corVerdeApp = const Color(0xFF00C853);
 
   @override
-  void dispose() {
-    _valorController.dispose();
-    _descricaoController.dispose();
-    _dataInicioController.dispose();
-    _dataLimiteController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _buscarDados();
+  }
+
+  Future<void> _buscarDados() async {
+    setState(() => _carregando = true);
+    try {
+      final usuario = await UsuarioService().getUsuarioFromToken();
+      if (usuario != null) {
+        final uid = usuario["id"].toString();
+        final objetivos = await ObjetivoService().listarObjetivos(uid);
+        final transacoes = await TransacaoService().listarTransacoes(uid);
+        final listaTransacoes = transacoes["transacoes"] ?? [];
+
+        double saldo = 0;
+        for (var t in listaTransacoes) {
+          saldo += (t["valor"] as num).toDouble();
+        }
+
+        setState(() {
+          _objetivos = objetivos["objetivos"] ?? [];
+          _saldoCalculado = saldo;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _carregando = false);
+    }
+  }
+
+  List<dynamic> get _objetivosFiltrados {
+    if (_filtroAtual == 'Em aberto') {
+      return _objetivos.where((o) =>
+          (double.tryParse(o['valor_atual'].toString()) ?? 0) <
+          (double.tryParse(o['valor_meta'].toString()) ?? 0)).toList();
+    }
+    if (_filtroAtual == 'Concluídos') {
+      return _objetivos.where((o) =>
+          (double.tryParse(o['valor_atual'].toString()) ?? 0) >=
+          (double.tryParse(o['valor_meta'].toString()) ?? 0)).toList();
+    }
+    return _objetivos;
   }
 
   @override
   Widget build(BuildContext context) {
-    const Color fundo = Color(0xFF0B0B0B);
-    const Color cinzaCampo = Color(0xFF2A2A2A);
-    const Color verde = Color(0xFF00CC44);
+    final tema = Theme.of(context);
+    final isDark = tema.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: fundo,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      appBar: AppBar(
+        title: const Text("Meus Objetivos", style: TextStyle(fontWeight: FontWeight.bold)),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.filter_list),
+            onSelected: (val) => setState(() => _filtroAtual = val),
+            itemBuilder: (_) => ['Todos', 'Em aberto', 'Concluídos']
+                .map((f) => PopupMenuItem(value: f, child: Text(f)))
+                .toList(),
+          )
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: corVerdeApp,
+        onPressed: () => Navigator.pushNamed(context, '/criarobjetivos').then((_) => _buscarDados()),
+        child: const Icon(Icons.add, color: Colors.black, size: 30),
+      ),
+      body: _carregando
+          ? Center(child: CircularProgressIndicator(color: corVerdeApp))
+          : Column(
               children: [
-                Row(
-                  children: [
-                    IconButton(
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Objetivo Financeiro',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
+                Container(
+                  margin: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E1E1E) : Colors.grey[100],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Saldo disponível", style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+                          const SizedBox(height: 4),
+                          Text(
+                            "R\$ ${_saldoCalculado.toStringAsFixed(2).replaceAll('.', ',')}",
+                            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                          ),
+                        ],
                       ),
+                      Icon(Icons.account_balance_wallet_outlined, color: corVerdeApp),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: GridView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 15,
+                      mainAxisSpacing: 15,
+                      childAspectRatio: 0.9,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                CampoValorObjetivo(
-                  controller: _valorController,
-                  corFundo: cinzaCampo,
-                ),
-                const SizedBox(height: 18),
-                CampoDescricaoObjetivo(
-                  controller: _descricaoController,
-                  corFundo: cinzaCampo,
-                ),
-                const SizedBox(height: 18),
-                CamposDataObjetivo(
-                  dataInicioController: _dataInicioController,
-                  dataLimiteController: _dataLimiteController,
-                  corFundo: cinzaCampo,
-                ),
-                const SizedBox(height: 30),
-                Center(
-                  child: BotaoAcaoObjetivo(
-                    texto: 'Gravar',
-                    corFundo: verde,
-                    onPressed: () {
-                      // TODO: integrar persistência do objetivo.
+                    itemCount: _objetivosFiltrados.length,
+                    itemBuilder: (_, i) {
+                      final obj = _objetivosFiltrados[i];
+                      return _CardObjetivo(
+                        corVerde: corVerdeApp,
+                        objetivo: obj,
+                        onTap: () => showDialog(
+                          context: context,
+                          builder: (_) => _DialogDetalhesObjetivo(
+                            corVerde: corVerdeApp,
+                            objetivo: obj,
+                            saldoDisponivel: _saldoCalculado,
+                            onRefresh: _buscarDados,
+                          ),
+                        ),
+                      );
                     },
                   ),
                 ),
               ],
             ),
-          ),
+    );
+  }
+}
+
+// --- CARD INDIVIDUAL ---
+class _CardObjetivo extends StatelessWidget {
+  final Map<String, dynamic> objetivo;
+  final VoidCallback onTap;
+  final Color corVerde;
+
+  const _CardObjetivo({required this.objetivo, required this.onTap, required this.corVerde});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    double meta = double.tryParse(objetivo['valor_meta'].toString()) ?? 0;
+    double atual = double.tryParse(objetivo['valor_atual'].toString()) ?? 0;
+    bool concluido = atual >= meta;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: concluido ? Border.all(color: corVerde, width: 2) : Border.all(color: isDark ? Colors.white10 : Colors.grey[300]!),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              backgroundColor: concluido ? corVerde.withOpacity(0.2) : Colors.grey.withOpacity(0.1),
+              child: Icon(concluido ? Icons.check_circle : Icons.flag_rounded, color: concluido ? corVerde : Colors.grey),
+            ),
+            const Spacer(),
+            Text(objetivo['descricao'] ?? "", maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text("Meta: R\$ ${meta.toStringAsFixed(2).replaceAll('.', ',')}", 
+              style: TextStyle(color: concluido ? corVerde : Colors.grey[600], fontSize: 12, fontWeight: concluido ? FontWeight.bold : FontWeight.normal)),
+          ],
         ),
       ),
     );
   }
 }
 
-class CampoValorObjetivo extends StatelessWidget {
-  const CampoValorObjetivo({
-    super.key,
-    required this.controller,
-    required this.corFundo,
-  });
+// --- DIÁLOGO DE DETALHES ---
+class _DialogDetalhesObjetivo extends StatelessWidget {
+  final Map<String, dynamic> objetivo;
+  final double saldoDisponivel;
+  final VoidCallback onRefresh;
+  final Color corVerde;
 
-  final TextEditingController controller;
-  final Color corFundo;
+  const _DialogDetalhesObjetivo({required this.objetivo, required this.saldoDisponivel, required this.onRefresh, required this.corVerde});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Valor',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
+    double meta = double.tryParse(objetivo['valor_meta'].toString()) ?? 0;
+    double atual = double.tryParse(objetivo['valor_atual'].toString()) ?? 0;
+    bool concluido = atual >= meta;
+    bool podeConcluir = saldoDisponivel >= meta;
+
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text("Detalhes", style: TextStyle(fontWeight: FontWeight.bold)),
+          IconButton(
+            icon: Icon(Icons.edit_note, color: corVerde),
+            onPressed: () {
+              Navigator.pop(context);
+              showDialog(
+                context: context,
+                builder: (_) => _DialogEdicaoObjetivo(objetivo: objetivo, corVerde: corVerde, onRefresh: onRefresh),
+              );
+            },
           ),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(objetivo['descricao'] ?? "", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 20),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              minHeight: 12,
+              value: (saldoDisponivel / meta).clamp(0, 1),
+              color: podeConcluir ? corVerde : Colors.orange,
+              backgroundColor: Colors.grey[300],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(concluido ? "Objetivo alcançado! 🎉" : "Faltam R\$ ${(meta - saldoDisponivel).clamp(0, double.infinity).toStringAsFixed(2).replaceAll('.', ',')}",
+            style: TextStyle(color: Colors.grey[600])),
+        ],
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+          onPressed: () async {
+            await ObjetivoService().deletarObjetivo(objetivo['id'].toString());
+            onRefresh();
+            Navigator.pop(context);
+          },
         ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-          cursorColor: const Color(0xFF00CC44),
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: corFundo,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-          ),
+        const Spacer(),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: corVerde, foregroundColor: Colors.black, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+          onPressed: (podeConcluir || concluido) ? () async {
+            await ObjetivoService().atualizarObjetivo(id: objetivo['id'].toString(), valorAtual: concluido ? 0 : meta);
+            onRefresh();
+            Navigator.pop(context);
+          } : null,
+          child: Text(concluido ? "Reabrir" : "Concluir"),
         ),
       ],
     );
   }
 }
 
-class CampoDescricaoObjetivo extends StatelessWidget {
-  const CampoDescricaoObjetivo({
-    super.key,
-    required this.controller,
-    required this.corFundo,
-  });
+// --- ✏️ NOVO DIÁLOGO DE EDIÇÃO PADRONIZADO ---
+class _DialogEdicaoObjetivo extends StatefulWidget {
+  final Map<String, dynamic> objetivo;
+  final Color corVerde;
+  final VoidCallback onRefresh;
 
-  final TextEditingController controller;
-  final Color corFundo;
+  const _DialogEdicaoObjetivo({required this.objetivo, required this.corVerde, required this.onRefresh});
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Descrição',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          maxLines: 5,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-          ),
-          cursorColor: const Color(0xFF00CC44),
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: corFundo,
-            hintText: 'Digite a descrição do objetivo',
-            hintStyle: const TextStyle(color: Color(0xFF9E9E9E)),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+  State<_DialogEdicaoObjetivo> createState() => _DialogEdicaoObjetivoState();
 }
 
-class CamposDataObjetivo extends StatelessWidget {
-  const CamposDataObjetivo({
-    super.key,
-    required this.dataInicioController,
-    required this.dataLimiteController,
-    required this.corFundo,
-  });
-
-  final TextEditingController dataInicioController;
-  final TextEditingController dataLimiteController;
-  final Color corFundo;
+class _DialogEdicaoObjetivoState extends State<_DialogEdicaoObjetivo> {
+  late TextEditingController _descController;
+  late TextEditingController _metaController;
+  double _metaNumerica = 0;
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: CampoDataObjetivo(
-            label: 'Data Início',
-            controller: dataInicioController,
-            corFundo: corFundo,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: CampoDataObjetivo(
-            label: 'Data Limite',
-            controller: dataLimiteController,
-            corFundo: corFundo,
-          ),
-        ),
-      ],
+  void initState() {
+    super.initState();
+    _metaNumerica = double.tryParse(widget.objetivo['valor_meta'].toString()) ?? 0;
+    _descController = TextEditingController(text: widget.objetivo['descricao']);
+    _metaController = TextEditingController(
+      text: NumberFormat.currency(symbol: "R\$", locale: "pt_BR").format(_metaNumerica)
     );
   }
-}
-
-class CampoDataObjetivo extends StatelessWidget {
-  const CampoDataObjetivo({
-    super.key,
-    required this.label,
-    required this.controller,
-    required this.corFundo,
-  });
-
-  final String label;
-  final TextEditingController controller;
-  final Color corFundo;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: corFundo,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: TextField(
-            controller: controller,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      title: const Text("Editar Objetivo", style: TextStyle(fontWeight: FontWeight.bold)),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Valor da Meta", style: TextStyle(color: Colors.grey, fontSize: 13)),
+            TextField(
+              controller: _metaController,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              cursorColor: widget.corVerde,
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: widget.corVerde),
+              onChanged: (value) {
+                String cleanString = value.replaceAll(RegExp(r'[^0-9]'), '');
+                if (cleanString.isEmpty) cleanString = '0';
+                double valor = double.parse(cleanString) / 100;
+                _metaNumerica = valor;
+                setState(() {
+                  _metaController.value = TextEditingValue(
+                    text: NumberFormat.currency(symbol: "R\$", locale: "pt_BR").format(valor),
+                    selection: TextSelection.collapsed(offset: NumberFormat.currency(symbol: "R\$", locale: "pt_BR").format(valor).length),
+                  );
+                });
+              },
+              decoration: const InputDecoration(border: InputBorder.none),
             ),
-            cursorColor: const Color(0xFF00CC44),
-            decoration: const InputDecoration(
-              suffixIcon: Icon(Icons.calendar_today, color: Colors.white70, size: 18),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(12)),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(12)),
-                borderSide: BorderSide.none,
+            const Divider(),
+            TextField(
+              controller: _descController,
+              cursorColor: widget.corVerde,
+              decoration: InputDecoration(
+                labelText: "Descrição do Objetivo",
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: widget.corVerde)),
               ),
             ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class BotaoAcaoObjetivo extends StatelessWidget {
-  const BotaoAcaoObjetivo({
-    super.key,
-    required this.texto,
-    required this.corFundo,
-    required this.onPressed,
-  });
-
-  final String texto;
-  final Color corFundo;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 220,
-      height: 52,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: corFundo,
-          foregroundColor: Colors.black,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
-          ),
-        ),
-        child: Text(
-          texto,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+          ],
         ),
       ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar", style: TextStyle(color: Colors.grey))),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: widget.corVerde, foregroundColor: Colors.black, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+          onPressed: () async {
+            await ObjetivoService().atualizarObjetivo(
+              id: widget.objetivo['id'].toString(),
+              descricao: _descController.text,
+              valorMeta: _metaNumerica,
+            );
+            widget.onRefresh();
+            if (mounted) Navigator.pop(context);
+          },
+          child: const Text("Salvar"),
+        ),
+      ],
     );
   }
 }
-

@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'tela_rec_senha.dart';
 import 'tela_up_usuario.dart';
 import 'package:app_nextcash/services/usuario_service.dart';
-
-final usuarioService = UsuarioService();
+import '../core/theme_controller.dart';
 
 class TelaUsuario extends StatefulWidget {
   const TelaUsuario({super.key});
@@ -19,17 +18,16 @@ class _TelaUsuarioState extends State<TelaUsuario> {
   String nome = "Carregando...";
   String email = "";
 
-   Future<void> carregarUsuario() async {
-  final usuarioService = UsuarioService();
-  final usuario = await usuarioService.getUsuarioFromToken();
+  Future<void> carregarUsuario() async {
+    final usuario = await usuarioService.getUsuarioFromToken();
 
-  if (usuario == null) return;
+    if (usuario == null) return;
 
-  setState(() {
-    nome = usuario["nome"];
-    email = usuario["email"];
-  });
-}
+    setState(() {
+      nome = usuario["nome"];
+      email = usuario["email"];
+    });
+  }
 
   @override
   void initState() {
@@ -39,13 +37,11 @@ class _TelaUsuarioState extends State<TelaUsuario> {
 
   @override
   Widget build(BuildContext context) {
-    const Color fundo = Color(0xFF0B0B0B);
-    const Color textoPrincipal = Colors.white;
-    const Color textoSecundario = Color(0xFFBDBDBD);
-    const Color verde = Color(0xFF00CC44);
+    final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: fundo,
+      backgroundColor: theme.scaffoldBackgroundColor,
+
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -55,7 +51,10 @@ class _TelaUsuarioState extends State<TelaUsuario> {
               /// botão voltar
               IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                icon: Icon(
+                  Icons.arrow_back,
+                  color: theme.textTheme.bodyLarge?.color,
+                ),
               ),
 
               const SizedBox(height: 10),
@@ -69,26 +68,25 @@ class _TelaUsuarioState extends State<TelaUsuario> {
                       height: 80,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: verde, width: 2),
+                        border: Border.all(color: theme.primaryColor, width: 2),
                       ),
-                      child: const Icon(Icons.person, size: 40, color: verde),
+                      child: Icon(
+                        Icons.person,
+                        size: 40,
+                        color: theme.primaryColor,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     Text(
                       nome,
-                      style: TextStyle(
-                        color: textoPrincipal,
+                      style: theme.textTheme.bodyLarge?.copyWith(
                         fontSize: 20,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     Text(
                       email,
-                      style: TextStyle(
-                        color: textoPrincipal,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      style: theme.textTheme.bodyMedium?.copyWith(fontSize: 16),
                     ),
                   ],
                 ),
@@ -96,11 +94,27 @@ class _TelaUsuarioState extends State<TelaUsuario> {
 
               const SizedBox(height: 30),
 
+              /// 🔥 SWITCH DE TEMA
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text("Modo escuro", style: theme.textTheme.bodyLarge),
+                // Define a cor da bolinha quando ligado
+                activeColor: const Color(0xFF00C853),
+                // Define a cor do fundo do switch quando ligado (opcional, um tom mais claro fica bom)
+                activeTrackColor: const Color(0xFF00C853).withOpacity(0.5),
+                value: theme.brightness == Brightness.dark,
+                onChanged: (value) {
+                  ThemeController.toggleTheme(value);
+                },
+              ),
+
+              const SizedBox(height: 10),
+
               /// opções
               ItemUsuario(
                 icone: Icons.person_outline,
-                titulo: "Dados Cadastrais",
-                subtitulo: "Informações Pessoais.",
+                titulo: "Dados cadastrados",
+                subtitulo: "Informações pessoais",
                 onTap: () async {
                   await Navigator.push(
                     context,
@@ -108,14 +122,14 @@ class _TelaUsuarioState extends State<TelaUsuario> {
                       builder: (context) => const TelaEditarUsuario(),
                     ),
                   );
-                  carregarUsuario(); // Recarrega os dados do usuário após editar
+                  carregarUsuario();
                 },
               ),
 
               ItemUsuario(
                 icone: Icons.shield_outlined,
                 titulo: "Segurança",
-                subtitulo: "Senhas, Acessos.",
+                subtitulo: "Senhas e acessos",
                 onTap: () {
                   Navigator.push(
                     context,
@@ -128,15 +142,15 @@ class _TelaUsuarioState extends State<TelaUsuario> {
 
               ItemUsuario(
                 icone: Icons.help_outline,
-                titulo: "Sobre o Aplicativo",
-                subtitulo: "Quem somos.",
+                titulo: "Sobre o aplicativo",
+                subtitulo: "Quem somos",
               ),
 
               const SizedBox(height: 10),
 
               ItemUsuario(
                 icone: Icons.logout,
-                titulo: "Sair da Conta",
+                titulo: "Sair da conta",
                 subtitulo: "",
                 mostrarSeta: false,
                 onTap: () async {
@@ -149,23 +163,24 @@ class _TelaUsuarioState extends State<TelaUsuario> {
                   );
                 },
               ),
+
               ItemUsuario(
                 icone: Icons.delete_outline,
-                titulo: "Deletar Conta",
+                titulo: "Apagar conta",
                 subtitulo: "Remover permanentemente",
                 mostrarSeta: false,
                 onTap: () async {
                   final confirmar = await showDialog(
                     context: context,
                     builder: (context) => AlertDialog(
-                      backgroundColor: Colors.black,
-                      title: const Text(
+                      backgroundColor: theme.cardColor,
+                      title: Text(
                         "Deletar conta",
-                        style: TextStyle(color: Colors.white),
+                        style: theme.textTheme.bodyLarge,
                       ),
-                      content: const Text(
+                      content: Text(
                         "Essa ação não pode ser desfeita. Deseja continuar?",
-                        style: TextStyle(color: Colors.white70),
+                        style: theme.textTheme.bodyMedium,
                       ),
                       actions: [
                         TextButton(
@@ -186,7 +201,9 @@ class _TelaUsuarioState extends State<TelaUsuario> {
                   if (confirmar == true) {
                     final tokenData = await usuarioService
                         .getUsuarioFromToken();
+
                     await usuarioService.deletar(tokenData!["id"]);
+
                     Navigator.pushNamedAndRemoveUntil(
                       context,
                       '/login',
@@ -203,6 +220,7 @@ class _TelaUsuarioState extends State<TelaUsuario> {
   }
 }
 
+/// 🔥 COMPONENTE ITEM
 class ItemUsuario extends StatelessWidget {
   const ItemUsuario({
     super.key,
@@ -221,17 +239,15 @@ class ItemUsuario extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const Color textoPrincipal = Colors.white;
-    const Color textoSecundario = Color(0xFFBDBDBD);
-    const Color verde = Color(0xFF00CC44);
+    final theme = Theme.of(context);
 
     return GestureDetector(
-      onTap: onTap, // aqui é onde você conecta o clique
+      onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 14),
         child: Row(
           children: [
-            Icon(icone, color: textoSecundario, size: 26),
+            Icon(icone, color: theme.textTheme.bodyMedium?.color, size: 26),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -239,8 +255,7 @@ class ItemUsuario extends StatelessWidget {
                 children: [
                   Text(
                     titulo,
-                    style: const TextStyle(
-                      color: textoPrincipal,
+                    style: theme.textTheme.bodyLarge?.copyWith(
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
                     ),
@@ -248,16 +263,17 @@ class ItemUsuario extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     subtitulo,
-                    style: const TextStyle(
-                      color: textoSecundario,
-                      fontSize: 12,
-                    ),
+                    style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12),
                   ),
                 ],
               ),
             ),
             if (mostrarSeta)
-              const Icon(Icons.arrow_forward_ios, color: verde, size: 16),
+              Icon(
+                Icons.arrow_forward_ios,
+                color: theme.primaryColor,
+                size: 16,
+              ),
           ],
         ),
       ),

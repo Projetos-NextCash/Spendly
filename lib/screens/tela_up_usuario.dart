@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:app_nextcash/services/usuario_service.dart';
 
-final usuarioService = UsuarioService();
-
 class TelaEditarUsuario extends StatefulWidget {
   const TelaEditarUsuario({super.key});
 
@@ -11,22 +9,31 @@ class TelaEditarUsuario extends StatefulWidget {
 }
 
 class _TelaEditarUsuarioState extends State<TelaEditarUsuario> {
+  final usuarioService = UsuarioService();
+
   final TextEditingController _nomeController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _senhaController = TextEditingController();
+
+  bool carregando = false;
+  
+  // Cor padrão definida para consistência
+  final Color corVerdeApp = const Color(0xFF00C853);
 
   @override
   void initState() {
     super.initState();
     carregarUsuario();
   }
-  //carrega os 
-  void carregarUsuario() async {
+
+  Future<void> carregarUsuario() async {
     final usuario = await usuarioService.getUsuarioFromToken();
 
-    if (usuario != null) {
-      _nomeController.text = usuario["nome"] ?? "";
-      _emailController.text = usuario["email"] ?? "";
+    if (usuario != null && mounted) {
+      setState(() {
+        _nomeController.text = usuario["nome"] ?? "";
+        _emailController.text = usuario["email"] ?? "";
+      });
     }
   }
 
@@ -38,11 +45,49 @@ class _TelaEditarUsuarioState extends State<TelaEditarUsuario> {
     super.dispose();
   }
 
+  Future<void> _salvar() async {
+    setState(() => carregando = true);
+
+    try {
+      final usuario = await usuarioService.getUsuarioFromToken();
+
+      if (usuario == null) {
+        throw Exception("Usuário não autenticado");
+      }
+
+      await usuarioService.atualizar(
+        id: usuario["id"],
+        nome: _nomeController.text.trim(),
+        email: _emailController.text.trim(),
+        senha: _senhaController.text.isEmpty
+            ? null
+            : _senhaController.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Alterações salvas com sucesso!")),
+      );
+
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erro ao atualizar: $e")),
+      );
+    } finally {
+      if (mounted) setState(() => carregando = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    const Color fundo = Color(0xFF0B0B0B);
-    const Color verde = Color(0xFF00CC44);
-    const Color inputGray = Color(0xFF3A3A3A);
+    final tema = Theme.of(context);
+    final textTheme = tema.textTheme;
+    final isDark = tema.brightness == Brightness.dark;
+    
+    // Cor de fundo dos inputs baseada no tema
+    final inputFillColor = isDark ? const Color(0xFF1E1E1E) : Colors.grey[200];
 
     Widget campo({
       required String label,
@@ -53,31 +98,33 @@ class _TelaEditarUsuarioState extends State<TelaEditarUsuario> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              label,
+              style: textTheme.bodyLarge?.copyWith(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[600],
+              ),
             ),
           ),
-          const SizedBox(height: 8),
           TextField(
             controller: controller,
             obscureText: obscure,
             keyboardType: keyboard,
-            style: const TextStyle(color: Colors.white),
-            cursorColor: verde,
+            cursorColor: corVerdeApp,
             decoration: InputDecoration(
               filled: true,
-              fillColor: inputGray,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
-              ),
+              fillColor: inputFillColor,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: corVerdeApp, width: 2),
               ),
             ),
           ),
@@ -86,103 +133,83 @@ class _TelaEditarUsuarioState extends State<TelaEditarUsuario> {
     }
 
     return Scaffold(
-      backgroundColor: fundo,
+      backgroundColor: tema.scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          "Perfil",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             children: [
-              /// topo
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const Text(
-                    "Editar usuário",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 30),
+              
+              // Avatar Decorativo
+              CircleAvatar(
+                radius: 40,
+                backgroundColor: corVerdeApp.withOpacity(0.1),
+                child: Icon(Icons.person_outline, size: 40, color: corVerdeApp),
               ),
-
+              
               const SizedBox(height: 30),
 
-              campo(label: "Nome", controller: _nomeController),
-
-              const SizedBox(height: 18),
+              campo(label: "Nome completo", controller: _nomeController),
+              const SizedBox(height: 20),
 
               campo(
-                label: "Email",
+                label: "E-mail",
                 controller: _emailController,
                 keyboard: TextInputType.emailAddress,
               ),
-
-              const SizedBox(height: 18),
+              const SizedBox(height: 20),
 
               campo(
-                label: "Nova senha",
+                label: "Nova senha (deixe em branco para manter)",
                 controller: _senhaController,
                 obscure: true,
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 40),
 
               SizedBox(
-                width: 220,
-                height: 52,
+                width: double.infinity,
+                height: 56,
                 child: ElevatedButton(
-                  onPressed: () async {
-                    final nome = _nomeController.text;
-                    final email = _emailController.text;
-                    final senha = _senhaController.text;
-
-                    try {
-                      // pega usuário logado
-                      final usuario = await usuarioService
-                          .getUsuarioFromToken();
-
-                      if (usuario == null) {
-                        throw Exception("Usuário não autenticado");
-                      }
-
-                      await usuarioService.atualizar(
-                        id: usuario["id"],
-                        nome: nome.isEmpty ? null : nome,
-                        email: email.isEmpty ? null : email,
-                        senha: senha.isEmpty ? null : senha,
-                      );
-
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Usuário atualizado com sucesso"),
-                        ),
-                      );
-
-                      Navigator.pop(context);
-                    } catch (e) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text(e.toString())));
-                    }
-                  },
+                  onPressed: carregando ? null : _salvar,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: verde,
+                    backgroundColor: corVerdeApp,
                     foregroundColor: Colors.black,
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
+                      borderRadius: BorderRadius.circular(30), // Arredondado padrão
                     ),
                   ),
-                  child: const Text(
-                    "Salvar alterações",
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
+                  child: carregando
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.black,
+                            strokeWidth: 3,
+                          ),
+                        )
+                      : const Text(
+                          "Salvar Alterações",
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
                 ),
               ),
+              const SizedBox(height: 20),
             ],
           ),
         ),

@@ -2,17 +2,24 @@ import 'package:flutter/material.dart';
 
 import 'screens/tela_home.dart';
 import 'screens/tela_login.dart';
-import 'screens/tela_objetivos.dart';
+import 'screens/tela_criar_objetivos.dart';
 import 'screens/tela_registro.dart';
 import 'screens/tela_transacao.dart';
 import 'screens/tela_usuario.dart';
+import 'screens/tela_objetivos.dart';
 
+import 'core/theme_controller.dart';
+import 'src/app_temas.dart';
 import 'core/supabase_config.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await SupabaseConfig.init();
+
+  //carrega o tema salvo antes de rodar o app
+  WidgetsFlutterBinding.ensureInitialized();
+  await ThemeController.loadTheme();
 
   runApp(const MyApp());
 }
@@ -22,18 +29,26 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-
-      initialRoute: '/login',
-
-      routes: {
-        '/login': (context) => LoginScreen(),
-        '/home': (context) => TelaHome(),
-        '/objetivos': (context) => TelaObjetivos(),
-        '/registro': (context) => RegisterScreen(),
-        '/transacao': (context) => TelaTransacao(),
-        '/usuario': (context) => TelaUsuario(),
+    return ValueListenableBuilder(
+      valueListenable: ThemeController.themeMode,
+      builder: (context, ThemeMode mode, _) {
+        return MaterialApp(
+          title: 'NextCash',
+          debugShowCheckedModeBanner: false,
+          theme: app_temas.claro,
+          darkTheme: app_temas.escuro,
+          themeMode: mode,
+          initialRoute: '/login',
+          routes: {
+            '/login': (context) => const LoginScreen(),
+            '/home': (context) => const TelaHome(),
+            '/objetivos': (context) => const TelaObjetivos(),
+            '/criarobjetivos': (context) => const TelaCriarObjetivos(),
+            '/registro': (context) => const RegisterScreen(),
+            '/transacao': (context) => const TelaTransacao(),
+            '/usuario': (context) => const TelaUsuario(),
+          },
+        );
       },
     );
   }

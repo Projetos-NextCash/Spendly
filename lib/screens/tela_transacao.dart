@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart'; // Adicione intl no seu pubspec.yaml para facilitar a formatação
 import 'tela_home.dart';
 import '/services/transacao_service.dart';
 import 'package:app_nextcash/services/usuario_service.dart';
 
-/// Tela de cadastro de transações financeiras com tema escuro.
 class TelaTransacao extends StatefulWidget {
   const TelaTransacao({super.key});
 
@@ -12,530 +12,221 @@ class TelaTransacao extends StatefulWidget {
 }
 
 class _TelaTransacaoState extends State<TelaTransacao> {
-  // Variáveis de estado para facilitar manutenção.
-  final TextEditingController _valorController = TextEditingController();
+  final TextEditingController _valorController = TextEditingController(text: "R\$ 0,00");
   final TextEditingController _descricaoController = TextEditingController();
-  final TextEditingController _novaCategoriaController =
-      TextEditingController();
+  final TextEditingController _novaCategoriaController = TextEditingController();
 
-  String _tipoSelecionado = 'Receita';
+  String _tipoSelecionado = 'Receita'; // 'Receita' = Entrada, 'Despesa' = Saída
   String _categoriaSelecionada = 'Alimentação';
-  String _dataAtual = "";
+  double _valorNumerico = 0.0;
+  
+  final Color corVerdeApp = const Color(0xFF00C853);
 
-  @override
-  void initState() {
-    super.initState();
-
-    final agora = DateTime.now();
-    _dataAtual =
-        "${agora.day.toString().padLeft(2, '0')}/"
-        "${agora.month.toString().padLeft(2, '0')}/"
-        "${agora.year}";
-  }
-
-  final List<String> _categorias = <String>[
-    'Alimentação',
-    'Transporte',
-    'Saúde',
-    'Lazer',
-    'Moradia',
-    'Outros',
+  final List<String> _categorias = [
+    'Alimentação', 'Transporte', 'Saúde', 'Lazer', 'Moradia', 'Outros',
   ];
 
-  @override
-  void dispose() {
-    _valorController.dispose();
-    _descricaoController.dispose();
-    _novaCategoriaController.dispose();
-    super.dispose();
+  // Lógica de Máscara Decimal (Estilo Banco)
+  void _atualizarValor(String value) {
+    String cleanString = value.replaceAll(RegExp(r'[^0-9]'), '');
+    double valor = double.parse(cleanString) / 100;
+    _valorNumerico = valor;
+    
+    setState(() {
+      _valorController.value = TextEditingValue(
+        text: NumberFormat.currency(symbol: "R\$", locale: "pt_BR").format(valor),
+        selection: TextSelection.collapsed(offset: NumberFormat.currency(symbol: "R\$", locale: "pt_BR").format(valor).length),
+      );
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    const Color fundo = Color(0xFF0B0B0B);
-    const Color cinzaCampo = Color(0xFF2A2A2A);
-    const Color verde = Color(0xFF00CC44);
+    final tema = Theme.of(context);
+    final isDark = tema.brightness == Brightness.dark;
+    final inputColor = isDark ? const Color(0xFF212121) : Colors.grey[200];
 
     return Scaffold(
-      backgroundColor: fundo,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Column(
+      backgroundColor: tema.scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: const Text("Movimentação", style: TextStyle(fontWeight: FontWeight.bold)),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildLabel("Valor"),
+            TextField(
+              controller: _valorController,
+              keyboardType: TextInputType.number,
+              onChanged: _atualizarValor,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 32, 
+                fontWeight: FontWeight.w800, 
+                color: _tipoSelecionado == 'Despesa' ? Colors.redAccent : corVerdeApp
+              ),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: inputColor,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(vertical: 20),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            _buildLabel("Descrição"),
+            TextField(
+              controller: _descricaoController,
+              maxLines: 3,
+              decoration: _inputDecoration("Digite uma descrição", inputColor!),
+            ),
+
+            const SizedBox(height: 24),
+
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: const [
-                    _BackButtonHeader(),
-                    SizedBox(width: 8),
-                    Text(
-                      'Transações',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                CampoValor(
-                  controller: _valorController,
-                  corFundo: cinzaCampo,
-                  isDespesa: _tipoSelecionado == 'Despesa',
-                ),
-                const SizedBox(height: 18),
-                CampoDescricao(
-                  controller: _descricaoController,
-                  corFundo: cinzaCampo,
-                ),
-
-                const SizedBox(height: 10),
-                Text(
-                  "Data: $_dataAtual",
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
-                ),
-
-                const SizedBox(height: 18),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: SelecaoTipo(
-                        tipoSelecionado: _tipoSelecionado,
-                        onChanged: (String novoTipo) {
-                          setState(() {
-                            _tipoSelecionado = novoTipo;
-                          });
-                        },
-                        corDestaque: verde,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownCategoria(
-                        categoriaAtual: _categoriaSelecionada,
-                        categorias: _categorias,
-                        corFundo: cinzaCampo,
-                        onChanged: (String novaCategoria) {
-                          setState(() {
-                            _categoriaSelecionada = novaCategoria;
-                          });
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                if (_categoriaSelecionada == 'Outros') ...[
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _novaCategoriaController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: "Digite nova categoria",
-                      hintStyle: const TextStyle(color: Colors.grey),
-                      filled: true,
-                      fillColor: cinzaCampo,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
+                // Botões de Tipo Modernos (Substituindo o Radio)
+                Expanded(
+                  flex: 5,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildLabel("Tipo"),
+                      _buildBotaoTipo("Entrada", "Receita", Icons.add_circle_outline),
+                      const SizedBox(height: 8),
+                      _buildBotaoTipo("Saída", "Despesa", Icons.remove_circle_outline),
+                    ],
                   ),
-                ],
-                const SizedBox(height: 30),
-                Center(
-                  child: BotaoSalvar(
-                    texto: 'Salvar',
-                    corFundo: verde,
-                    onPressed: () async {
-                      final usuarioService = UsuarioService();
-                      final usuario = await usuarioService
-                          .getUsuarioFromToken();
-                      final idUsuario = usuario?['id'];
+                ),
+                
+                const SizedBox(width: 16),
 
-                      final transacaoService = TransacaoService();
-
-                      String valor = _valorController.text
-                          .replaceAll('.', '')
-                          .replaceAll(',', '.');
-
-                      if (_tipoSelecionado == 'Despesa') {
-                        valor = "-$valor";
-                      }
-
-                      String descricao = _descricaoController.text;
-
-                      String categoriaFinal = _categoriaSelecionada;
-
-                      if (_categoriaSelecionada == 'Outros' &&
-                          _novaCategoriaController.text.isNotEmpty) {
-                        categoriaFinal = _novaCategoriaController.text;
-                      }
-
-                      // ISO 8601
-                      final agora = DateTime.now();
-                      final dataTransacao = agora.toIso8601String();
-
-                      print("DATA ISO: $dataTransacao");
-
-                      try {
-                        await transacaoService.criarTransacao(
-                          valor: valor,
-                          descricao: descricao,
-                          tipo: _tipoSelecionado,
-                          categoria: categoriaFinal,
-                          dataTransacao: dataTransacao,
-                          idUsuario: idUsuario,
-                        );
-
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(builder: (context) => TelaHome()),
-                        );
-                      } catch (e) {
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(SnackBar(content: Text(e.toString())));
-                      }
-                    },
+                // Categoria
+                Expanded(
+                  flex: 6,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildLabel("Categoria"),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: inputColor,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _categoriaSelecionada,
+                            isExpanded: true,
+                            dropdownColor: isDark ? const Color(0xFF2B2B2B) : Colors.white,
+                            items: _categorias.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                            onChanged: (v) => setState(() => _categoriaSelecionada = v!),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
-class _BackButtonHeader extends StatelessWidget {
-  const _BackButtonHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(),
-      icon: const Icon(Icons.arrow_back, color: Colors.white),
-      onPressed: () {
-        Navigator.pop(context);
-      },
-    );
-  }
-}
-
-class CampoValor extends StatelessWidget {
-  const CampoValor({
-    super.key,
-    required this.controller,
-    required this.corFundo,
-    required this.isDespesa,
-  });
-
-  final TextEditingController controller;
-  final Color corFundo;
-  final bool isDespesa;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Valor',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          style: TextStyle(
-            color: isDespesa ? Colors.red : Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-          cursorColor: const Color(0xFF00CC44),
-          onChanged: (value) {
-            String numbers = value.replaceAll(RegExp(r'[^0-9]'), '');
-
-            if (numbers.isEmpty) {
-              controller.text = '';
-              return;
-            }
-
-            double valor = double.parse(numbers) / 100;
-
-            controller.text = valor.toStringAsFixed(2).replaceAll('.', ',');
-
-            controller.selection = TextSelection.fromPosition(
-              TextPosition(offset: controller.text.length),
-            );
-          },
-          decoration: InputDecoration(
-            hintText: '0,00',
-            hintStyle: const TextStyle(color: Colors.grey),
-            filled: true,
-            fillColor: corFundo,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class CampoDescricao extends StatelessWidget {
-  const CampoDescricao({
-    super.key,
-    required this.controller,
-    required this.corFundo,
-  });
-
-  final TextEditingController controller;
-  final Color corFundo;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Descrição',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          maxLines: 5,
-          style: const TextStyle(color: Colors.white, fontSize: 14),
-          cursorColor: const Color(0xFF00CC44),
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: corFundo,
-            hintText: 'Digite uma descrição',
-            hintStyle: const TextStyle(color: Color(0xFF9E9E9E)),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class SelecaoTipo extends StatelessWidget {
-  const SelecaoTipo({
-    super.key,
-    required this.tipoSelecionado,
-    required this.onChanged,
-    required this.corDestaque,
-  });
-
-  final String tipoSelecionado;
-  final ValueChanged<String> onChanged;
-  final Color corDestaque;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Tipo',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 8),
-        _TipoRadioTile(
-          titulo: 'Receita',
-          valor: 'Receita',
-          groupValue: tipoSelecionado,
-          onChanged: onChanged,
-          corDestaque: corDestaque,
-        ),
-        const SizedBox(height: 2),
-        _TipoRadioTile(
-          titulo: 'Despesa',
-          valor: 'Despesa',
-          groupValue: tipoSelecionado,
-          onChanged: onChanged,
-          corDestaque: corDestaque,
-        ),
-      ],
-    );
-  }
-}
-
-class _TipoRadioTile extends StatelessWidget {
-  const _TipoRadioTile({
-    required this.titulo,
-    required this.valor,
-    required this.groupValue,
-    required this.onChanged,
-    required this.corDestaque,
-  });
-
-  final String titulo;
-  final String valor;
-  final String groupValue;
-  final ValueChanged<String> onChanged;
-  final Color corDestaque;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => onChanged(valor),
-      borderRadius: BorderRadius.circular(8),
-      child: Row(
-        children: [
-          Radio<String>(
-            value: valor,
-            groupValue: groupValue,
-            activeColor: corDestaque,
-            onChanged: (String? novoValor) {
-              if (novoValor != null) {
-                onChanged(novoValor);
-              }
-            },
-          ),
-          Text(
-            titulo,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class DropdownCategoria extends StatelessWidget {
-  const DropdownCategoria({
-    super.key,
-    required this.categoriaAtual,
-    required this.categorias,
-    required this.corFundo,
-    required this.onChanged,
-  });
-
-  final String categoriaAtual;
-  final List<String> categorias;
-  final Color corFundo;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Categoria',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: corFundo,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: categoriaAtual,
-              isExpanded: true,
-              dropdownColor: const Color(0xFF2A2A2A),
-              icon: const Icon(
-                Icons.keyboard_arrow_down,
-                color: Colors.white70,
+            if (_categoriaSelecionada == 'Outros') ...[
+              const SizedBox(height: 16),
+              _buildLabel("Nova Categoria"),
+              TextField(
+                controller: _novaCategoriaController,
+                decoration: _inputDecoration("Qual o nome?", inputColor),
               ),
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              items: categorias
-                  .map(
-                    (String categoria) => DropdownMenuItem<String>(
-                      value: categoria,
-                      child: Text(categoria),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (String? novaCategoria) {
-                if (novaCategoria != null) {
-                  onChanged(novaCategoria);
-                }
-              },
+            ],
+
+            const SizedBox(height: 40),
+
+            SizedBox(
+              width: double.infinity,
+              height: 58,
+              child: ElevatedButton(
+                onPressed: _salvar,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: corVerdeApp,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                  elevation: 0,
+                ),
+                child: const Text("Adicionar", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
             ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class BotaoSalvar extends StatelessWidget {
-  const BotaoSalvar({
-    super.key,
-    required this.texto,
-    required this.corFundo,
-    required this.onPressed,
-  });
-
-  final String texto;
-  final Color corFundo;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 220,
-      height: 52,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: corFundo,
-          foregroundColor: Colors.black,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
-          ),
-        ),
-        child: Text(
-          texto,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ],
         ),
       ),
     );
+  }
+
+  Widget _buildLabel(String texto) => Padding(
+    padding: const EdgeInsets.only(bottom: 8, left: 4),
+    child: Text(texto, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.grey)),
+  );
+
+  // Botões de Tipo que substituem o Radio
+  Widget _buildBotaoTipo(String label, String value, IconData icone) {
+    final selecionado = _tipoSelecionado == value;
+    final cor = value == "Receita" ? corVerdeApp : Colors.redAccent;
+
+    return GestureDetector(
+      onTap: () => setState(() => _tipoSelecionado = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        decoration: BoxDecoration(
+          color: selecionado ? cor.withOpacity(0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: selecionado ? cor : Colors.grey.withOpacity(0.3), width: selecionado ? 2 : 1),
+        ),
+        child: Row(
+          children: [
+            Icon(icone, size: 18, color: selecionado ? cor : Colors.grey),
+            const SizedBox(width: 8),
+            Text(label, style: TextStyle(color: selecionado ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black) : Colors.grey, fontWeight: selecionado ? FontWeight.bold : FontWeight.normal)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String hint, Color fill) => InputDecoration(
+    hintText: hint,
+    filled: true,
+    fillColor: fill,
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+    contentPadding: const EdgeInsets.all(16),
+  );
+
+  Future<void> _salvar() async {
+    if (_valorNumerico == 0) return;
+    
+    final usuario = await UsuarioService().getUsuarioFromToken();
+    final idUsuario = usuario?['id'];
+    
+    String valorFinal = _tipoSelecionado == 'Despesa' ? (-_valorNumerico).toString() : _valorNumerico.toString();
+
+    try {
+      await TransacaoService().criarTransacao(
+        valor: valorFinal,
+        descricao: _descricaoController.text,
+        tipo: _tipoSelecionado,
+        categoria: _categoriaSelecionada == 'Outros' ? _novaCategoriaController.text : _categoriaSelecionada,
+        dataTransacao: DateTime.now().toIso8601String(),
+        idUsuario: idUsuario,
+      );
+      if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const TelaHome()));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erro: $e")));
+    }
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 import 'tela_objetivos.dart';
 import 'tela_transacao.dart';
@@ -16,305 +17,391 @@ class TelaHome extends StatefulWidget {
 
 class _TelaHomeState extends State<TelaHome> {
   String nomeUsuario = "Carregando...";
-
-  Future<void> carregarUsuario() async {
-  final usuarioService = UsuarioService();
-  final usuario = await usuarioService.getUsuarioFromToken();
-
-  if (usuario == null) return;
-
-  setState(() {
-    nomeUsuario = usuario["nome"];
-  });
-}
-
-  void carregarTransacoes() async {
-    final usuarioService = UsuarioService();
-    final tokenData = await usuarioService.getUsuarioFromToken();
-
-    if (tokenData == null) return;
-
-    final idUsuario = tokenData["id"];
-    final transacaoService = TransacaoService();
-    final response = await transacaoService.listarTransacoes(idUsuario);
-
-    final transacoes = response["transacoes"] ?? [];
-
-    double saldo = 0;
-    double despesas = 0;
-
-    List<_DespesaRecente> lista = [];
-
-    for (var t in transacoes) {
-      double valor = (t["valor"] as num).toDouble();
-
-      saldo += valor;
-
-      if (valor < 0) {
-        despesas += valor.abs();
-      }
-    }
-
-    // últimas 5
-    for (var t in transacoes.reversed.take(5)) {
-      final dataApi = DateTime.parse(
-        t["data_transacao"],
-      ).toLocal(); // <- IMPORTANTE
-
-      final dataFormatada =
-          "${dataApi.day.toString().padLeft(2, '0')}/"
-          "${dataApi.month.toString().padLeft(2, '0')}/"
-          "${dataApi.year}";
-
-      lista.add(
-        _DespesaRecente(
-          id: t["id"].toString(),
-          nome: t["categoria"],
-          valor: (t["valor"] as num).toDouble(),
-          data: dataFormatada,
-        ),
-      );
-    }
-
-    setState(() {
-      saldoTotal = saldo;
-      despesaTotal = despesas;
-      despesasRecentes = lista; // <- isso limpa corretamente
-    });
-  }
+  Map<int, double> receitasPorMes = {};
+  Map<int, double> despesasPorMes = {};
+  double saldoTotal = 0;
+  double despesaTotal = 0;
+  List<DespesaRecente> despesasRecentes = [];
+  bool carregando = true;
 
   @override
   void initState() {
     super.initState();
-    carregarUsuario();
-    carregarTransacoes();
+    _inicializarDados();
   }
 
-  // Valores em variáveis para facilitar manutenção.
-  double saldoTotal = 0;
-  double despesaTotal = 0;
+  Future<void> _inicializarDados() async {
+    setState(() => carregando = true);
+    await Future.wait([carregarUsuario(), carregarTransacoes()]);
+    if (mounted) setState(() => carregando = false);
+  }
 
-  List<_DespesaRecente> despesasRecentes = <_DespesaRecente>[];
+  String _abreviarNome(String nome) {
+    List<String> partes = nome.trim().split(' ');
+    if (partes.length <= 1) return nome;
+    String primeiroNome = partes[0];
+    String sobrenomesAbreviados = partes
+        .skip(1)
+        .where((p) => p.length > 2)
+        .map((p) => "${p[0].toUpperCase()}.")
+        .join(' ');
+    return "$primeiroNome $sobrenomesAbreviados";
+  }
+
+  Future<void> carregarUsuario() async {
+    final usuario = await UsuarioService().getUsuarioFromToken();
+    if (usuario != null && mounted) {
+      setState(() => nomeUsuario = usuario["nome"]);
+    }
+  }
+
+  Future<void> carregarTransacoes() async {
+    final tokenData = await UsuarioService().getUsuarioFromToken();
+    if (tokenData == null) return;
+
+    final idUsuario = tokenData["id"];
+    final response = await TransacaoService().listarTransacoes(idUsuario);
+    final transacoes = response["transacoes"] ?? [];
+
+    double saldo = 0;
+    double despesas = 0;
+    Map<int, double> tempReceitas = {};
+    Map<int, double> tempDespesas = {};
+    List<DespesaRecente> lista = [];
+
+    for (var t in transacoes) {
+      double valor = (t["valor"] as num).toDouble();
+      final data = DateTime.parse(t["data_transacao"]);
+      int mes = data.month;
+
+      saldo += valor;
+      if (valor > 0) {
+        tempReceitas[mes] = (tempReceitas[mes] ?? 0) + valor;
+      } else {
+        double valorAbs = valor.abs();
+        despesas += valorAbs;
+        tempDespesas[mes] = (tempDespesas[mes] ?? 0) + valorAbs;
+      }
+    }
+
+    final recentes = transacoes.reversed.take(5).toList();
+    for (var t in recentes) {
+      final dataApi = DateTime.parse(t["data_transacao"]).toLocal();
+      lista.add(
+        DespesaRecente(
+          id: t["id"].toString(),
+          nome: t["categoria"],
+          valor: (t["valor"] as num).toDouble(),
+          data:
+              "${dataApi.day.toString().padLeft(2, '0')}/${dataApi.month.toString().padLeft(2, '0')}",
+        ),
+      );
+    }
+
+    if (mounted) {
+      setState(() {
+        receitasPorMes = tempReceitas;
+        despesasPorMes = tempDespesas;
+        saldoTotal = saldo;
+        despesaTotal = despesas;
+        despesasRecentes = lista;
+      });
+    }
+  }
+
+  // --- LÓGICA DE APAGAR ATUALIZADA ---
+  Future<void> _confirmarExclusao(String id) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Excluir Movimentação"),
+        content: const Text("Deseja realmente apagar este registro?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancelar"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Apagar", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true) {
+      try {
+        // Chamando seu método apagarTransacao exatamente como você enviou
+        final resultado = await TransacaoService().apagarTransacao(id);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(resultado["message"] ?? "Sucesso!")),
+          );
+          carregarTransacoes(); // Recarrega os dados da tela
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Erro ao apagar transação.")),
+          );
+        }
+      }
+    }
+  }
 
   String _formatarReal(double valor) {
-    final String comDuasCasas = valor.toStringAsFixed(2).replaceAll('.', ',');
-    return 'R\$ $comDuasCasas';
+    return 'R\$ ${valor.toStringAsFixed(2).replaceAll('.', ',')}';
+  }
+
+  Widget _buildGrafico(ThemeData theme) {
+    double maxValor = 500;
+    for (var v in [...receitasPorMes.values, ...despesasPorMes.values]) {
+      if (v > maxValor) maxValor = v;
+    }
+
+    return Container(
+      height: 220,
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(10, 24, 20, 10),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: BarChart(
+        BarChartData(
+          alignment: BarChartAlignment.spaceAround,
+          maxY: maxValor * 1.2,
+          titlesData: FlTitlesData(
+            show: true,
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                getTitlesWidget: (value, meta) {
+                  const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+                  int idx = value.toInt() - 1;
+                  if (idx < 0 || idx >= 12) return const SizedBox();
+                  return Text(meses[idx], style: TextStyle(color: theme.textTheme.bodyMedium?.color, fontSize: 10));
+                },
+              ),
+            ),
+          ),
+          gridData: const FlGridData(show: false),
+          borderData: FlBorderData(show: false),
+          barGroups: List.generate(6, (index) {
+            int mes = index + 1;
+            return BarChartGroupData(
+              x: mes,
+              barRods: [
+                BarChartRodData(toY: receitasPorMes[mes] ?? 0, color: theme.primaryColor, width: 7),
+                BarChartRodData(toY: despesasPorMes[mes] ?? 0, color: Colors.redAccent, width: 7),
+              ],
+            );
+          }),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    const Color fundo = Color(0xFF0B0B0B);
-    const Color textoPrincipal = Colors.white;
-    const Color textoSecundario = Color(0xFFBDBDBD);
-    const Color cinzaCard = Color(0xFF2B2B2B);
-    const Color vermelhoDespesa = Color(0xFFD64545);
-    const Color verde = Color(0xFF00CC44);
-    const Color azul = Color(0xFF2D7FF9);
-    const Color amarelo = Color(0xFFF2C94C);
-    const Color verdeEscuro = Color(0xFF005200);
+    final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: fundo,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Olá, $nomeUsuario',
-                      style: const TextStyle(
-                        color: textoPrincipal,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                      ),
+        child: RefreshIndicator(
+          onRefresh: _inicializarDados,
+          color: theme.primaryColor,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(theme),
+                  const SizedBox(height: 20),
+                  CardSaldo(saldoTexto: _formatarReal(saldoTotal)),
+                  const SizedBox(height: 12),
+                  CardDespesa(despesaTexto: 'Total de saídas: ${_formatarReal(despesaTotal)}'),
+                  const SizedBox(height: 28),
+                  Text(
+                    'Movimentações recentes',
+                    style: theme.textTheme.bodyLarge?.copyWith(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  ...despesasRecentes.map(
+                    (item) => ItemDespesaWidget(
+                      item: item,
+                      onDelete: () => _confirmarExclusao(item.id),
                     ),
+                  ),
 
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const TelaUsuario(),
-                          ),
-                        );
-                      },
-                      child: const CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Colors.white,
-                        child: Icon(Icons.person, color: Colors.black),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                CardSaldo(
-                  saldoTexto: _formatarReal(saldoTotal),
-                  corFundo: cinzaCard,
-                ),
-                const SizedBox(height: 12),
-                CardDespesa(
-                  despesaTexto: 'Despesa - ${_formatarReal(despesaTotal)}',
-                  corFundo: vermelhoDespesa,
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Despesas Recentes',
-                  style: TextStyle(
-                    color: textoPrincipal,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
+                  const SizedBox(height: 24),
+                  _buildAcoesRapidas(theme),
+                  const SizedBox(height: 32),
+                  Text(
+                    'Visão Mensal (6 meses)',
+                    style: theme.textTheme.bodyLarge?.copyWith(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                ),
-                const SizedBox(height: 12),
-                ...despesasRecentes.map((item) {
-                  final bool isDespesa = item.valor < 0;
-
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: ItemDespesa(
-                      nome: item.nome,
-                      valorTexto: isDespesa
-                          ? '-${_formatarReal(item.valor.abs())}'
-                          : _formatarReal(item.valor),
-                      data: item.data,
-                      corNome: textoPrincipal,
-                      corMeta: textoSecundario,
-                      corValor: isDespesa ? vermelhoDespesa : Colors.green,
-                      onDelete: () async {
-                        final transacaoService = TransacaoService();
-                        await transacaoService.apagarTransacao(item.id);
-                        carregarTransacoes();
-                      },
-                    ),
-                  );
-                }),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    BotaoAcao(
-                      icone: Icons.add,
-                      texto: 'Novo',
-                      corCirculo: verde,
-                      onTap: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const TelaTransacao(),
-                          ),
-                        );
-                        carregarTransacoes();
-                      },
-                    ),
-                    SizedBox(width: 18),
-                    BotaoAcao(
-                      icone: Icons.flag,
-                      texto: 'Objetivos',
-                      corCirculo: azul,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const TelaObjetivos(),
-                          ),
-                        );
-                      },
-                    ),
-                    SizedBox(width: 18),
-                    BotaoAcao(
-                      icone: Icons.receipt_long,
-                      texto: 'Extrato',
-                      corCirculo: amarelo,
-                      onTap: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const TelaExtrato(),
-                          ),
-                        );
-
-                        carregarTransacoes();
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 26),
-                const Text(
-                  'Gráfico Mensal',
-                  style: TextStyle(
-                    color: textoPrincipal,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  height: 220,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: cinzaCard,
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Text(
-                    'Placeholder do gráfico',
-                    style: TextStyle(color: textoSecundario, fontSize: 14),
-                  ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  _buildGrafico(theme),
+                  const SizedBox(height: 40),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
   }
+
+  Widget _buildHeader(ThemeData theme) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Bem-vindo(a),", style: theme.textTheme.bodyMedium),
+            Text(
+              _abreviarNome(nomeUsuario),
+              style: theme.textTheme.bodyLarge?.copyWith(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        GestureDetector(
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaUsuario())),
+          child: CircleAvatar(
+            backgroundColor: theme.cardColor,
+            child: Icon(Icons.person_outline, color: theme.primaryColor),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAcoesRapidas(ThemeData theme) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        BotaoAcao(
+          icone: Icons.add,
+          texto: 'Novo',
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaTransacao())).then((_) => carregarTransacoes()),
+        ),
+        BotaoAcao(
+          icone: Icons.flag_outlined,
+          texto: 'Metas',
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaObjetivos())),
+        ),
+        BotaoAcao(
+          icone: Icons.bar_chart,
+          texto: 'Extrato',
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaExtrato())).then((_) => carregarTransacoes()),
+        ),
+      ],
+    );
+  }
 }
 
-class CardSaldo extends StatelessWidget {
-  const CardSaldo({
-    super.key,
-    required this.saldoTexto,
-    required this.corFundo,
-  });
+class DespesaRecente {
+  final String id;
+  final String nome;
+  final double valor;
+  final String data;
 
-  final String saldoTexto;
-  final Color corFundo;
+  DespesaRecente({required this.id, required this.nome, required this.valor, required this.data});
+}
+
+class ItemDespesaWidget extends StatelessWidget {
+  final DespesaRecente item;
+  final VoidCallback onDelete;
+
+  const ItemDespesaWidget({
+    super.key,
+    required this.item,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bool isDespesa = item.valor < 0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: (isDespesa ? Colors.red : Colors.green).withOpacity(0.1),
+            child: Icon(
+              isDespesa ? Icons.arrow_downward : Icons.arrow_upward,
+              color: isDespesa ? Colors.red : Colors.green,
+              size: 16,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.nome, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold, fontSize: 15)),
+                Text(item.data, style: theme.textTheme.bodySmall),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${isDespesa ? "- " : "+ "}R\$ ${item.valor.abs().toStringAsFixed(2)}',
+                style: TextStyle(
+                  color: isDespesa ? Colors.redAccent : Colors.green,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              GestureDetector(
+                onTap: onDelete,
+                child: const Icon(Icons.delete_outline, size: 18, color: Colors.grey),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- OUTROS COMPONENTES (CARD SALDO, CARD DESPESA, BOTAO ACAO) ---
+class CardSaldo extends StatelessWidget {
+  final String saldoTexto;
+  const CardSaldo({super.key, required this.saldoTexto});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: corFundo,
-        borderRadius: BorderRadius.circular(18),
-      ),
+      decoration: BoxDecoration(color: theme.cardColor, borderRadius: BorderRadius.circular(18)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Saldo Total',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+          Text('Dinheiro disponível', style: theme.textTheme.bodyMedium),
           const SizedBox(height: 8),
-          Text(
-            saldoTexto,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          Text(saldoTexto, style: theme.textTheme.bodyLarge?.copyWith(fontSize: 28, fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -322,100 +409,20 @@ class CardSaldo extends StatelessWidget {
 }
 
 class CardDespesa extends StatelessWidget {
-  const CardDespesa({
-    super.key,
-    required this.despesaTexto,
-    required this.corFundo,
-  });
-
   final String despesaTexto;
-  final Color corFundo;
+  const CardDespesa({super.key, required this.despesaTexto});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: corFundo,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text(
-        despesaTexto,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-class ItemDespesa extends StatelessWidget {
-  const ItemDespesa({
-    super.key,
-    required this.nome,
-    required this.valorTexto,
-    required this.data,
-    required this.corNome,
-    required this.corMeta,
-    required this.corValor,
-    required this.onDelete,
-  });
-
-  final String nome;
-  final String valorTexto;
-  final String data;
-  final Color corNome;
-  final Color corMeta;
-  final Color corValor;
-  final VoidCallback? onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF171717),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: theme.cardColor, borderRadius: BorderRadius.circular(12)),
       child: Row(
         children: [
-          Expanded(
-            child: Text(
-              nome,
-              style: TextStyle(
-                color: corNome,
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                valorTexto,
-                style: TextStyle(
-                  color: corValor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(data, style: TextStyle(color: corMeta, fontSize: 12)),
-            ],
-          ),
-
+          const Icon(Icons.trending_down, color: Colors.redAccent),
           const SizedBox(width: 8),
-
-          IconButton(
-            icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-            onPressed: onDelete,
-          ),
+          Text(despesaTexto, style: theme.textTheme.bodyLarge),
         ],
       ),
     );
@@ -423,59 +430,28 @@ class ItemDespesa extends StatelessWidget {
 }
 
 class BotaoAcao extends StatelessWidget {
-  const BotaoAcao({
-    super.key,
-    required this.icone,
-    required this.texto,
-    required this.corCirculo,
-    this.onTap,
-  });
-
   final IconData icone;
   final String texto;
-  final Color corCirculo;
   final VoidCallback? onTap;
+
+  const BotaoAcao({super.key, required this.icone, required this.texto, this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Column(
         children: [
           Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              color: corCirculo,
-              shape: BoxShape.circle,
-            ),
-            child: Center(child: Icon(icone, color: Colors.black, size: 28)),
+            width: 56, height: 56,
+            decoration: BoxDecoration(color: theme.primaryColor, shape: BoxShape.circle),
+            child: Icon(icone, color: Colors.black),
           ),
           const SizedBox(height: 8),
-          Text(
-            texto,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+          Text(texto, style: theme.textTheme.bodyMedium),
         ],
       ),
     );
   }
-}
-
-class _DespesaRecente {
-  const _DespesaRecente({
-    required this.id,
-    required this.nome,
-    required this.valor,
-    required this.data,
-  });
-
-  final String id;
-  final String nome;
-  final double valor;
-  final String data;
 }
