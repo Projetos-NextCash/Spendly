@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 import 'tela_rec_senha.dart';
 import 'tela_up_usuario.dart';
@@ -18,16 +20,42 @@ class _TelaUsuarioState extends State<TelaUsuario> {
   String nome = "Carregando...";
   String email = "";
 
-  Future<void> carregarUsuario() async {
-    final usuario = await usuarioService.getUsuarioFromToken();
+  Future<Map<String, dynamic>?> getUsuarioById(int id) async {
+  try {
+    final response = await http.get(
+      Uri.parse("SEU_ENDPOINT_AQUI/usuarios/$id"),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    );
 
-    if (usuario == null) return;
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
 
-    setState(() {
-      nome = usuario["nome"];
-      email = usuario["email"];
-    });
+    return null;
+  } catch (e) {
+    throw Exception("Erro ao buscar usuário: $e");
   }
+}
+
+  Future<void> carregarUsuario() async {
+  final usuarioLocal = await usuarioService.getUsuarioFromToken();
+
+  if (usuarioLocal == null) return;
+
+  final resposta =
+      await usuarioService.buscarPorId(usuarioLocal["id"]);
+
+  final usuario = resposta["usuario"];
+
+  if (!mounted) return;
+
+  setState(() {
+    nome = usuario["nome"] ?? "";
+    email = usuario["email"] ?? "";
+  });
+}
 
   @override
   void initState() {
@@ -41,7 +69,6 @@ class _TelaUsuarioState extends State<TelaUsuario> {
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -98,9 +125,7 @@ class _TelaUsuarioState extends State<TelaUsuario> {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text("Modo escuro", style: theme.textTheme.bodyLarge),
-                // Define a cor da bolinha quando ligado
                 activeColor: const Color(0xFF00C853),
-                // Define a cor do fundo do switch quando ligado (opcional, um tom mais claro fica bom)
                 activeTrackColor: const Color(0xFF00C853).withOpacity(0.5),
                 value: theme.brightness == Brightness.dark,
                 onChanged: (value) {
@@ -110,7 +135,7 @@ class _TelaUsuarioState extends State<TelaUsuario> {
 
               const SizedBox(height: 10),
 
-              /// opções
+              /// opções (Todos agora possuem efeito InkWell nativamente)
               ItemUsuario(
                 icone: Icons.person_outline,
                 titulo: "Dados cadastrados",
@@ -122,7 +147,14 @@ class _TelaUsuarioState extends State<TelaUsuario> {
                       builder: (context) => const TelaEditarUsuario(),
                     ),
                   );
-                  carregarUsuario();
+
+                  if (mounted) {
+                    setState(() {
+                      nome = "Carregando...";
+                      email = "";
+                    });
+                    await carregarUsuario();
+                  }
                 },
               ),
 
@@ -144,6 +176,18 @@ class _TelaUsuarioState extends State<TelaUsuario> {
                 icone: Icons.help_outline,
                 titulo: "Sobre o aplicativo",
                 subtitulo: "Quem somos",
+                onTap: () {
+                  Navigator.pushNamed(context, '/sobrenos');
+                },
+              ),
+
+              ItemUsuario(
+                icone: Icons.help_outline,
+                titulo: "Tutorial",
+                subtitulo: "Como usar o aplicativo",
+                onTap: () {
+                  Navigator.pushNamed(context, '/tutorial');
+                },
               ),
 
               const SizedBox(height: 10),
@@ -201,7 +245,6 @@ class _TelaUsuarioState extends State<TelaUsuario> {
                   if (confirmar == true) {
                     final tokenData = await usuarioService
                         .getUsuarioFromToken();
-
                     await usuarioService.deletar(tokenData!["id"]);
 
                     Navigator.pushNamedAndRemoveUntil(
@@ -220,7 +263,7 @@ class _TelaUsuarioState extends State<TelaUsuario> {
   }
 }
 
-/// 🔥 COMPONENTE ITEM
+/// 🔥 COMPONENTE ITEM REFATORADO COM INKWELL
 class ItemUsuario extends StatelessWidget {
   const ItemUsuario({
     super.key,
@@ -241,10 +284,17 @@ class ItemUsuario extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return GestureDetector(
+    return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      splashColor: theme.brightness == Brightness.dark
+          ? Colors.white10
+          : Colors.black12, // Adapta o brilho do clique conforme o tema ativo
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(
+          vertical: 14,
+          horizontal: 8,
+        ), // Adicionado um pequeno padding horizontal para o efeito não grudar nas bordas
         child: Row(
           children: [
             Icon(icone, color: theme.textTheme.bodyMedium?.color, size: 26),
@@ -260,11 +310,13 @@ class ItemUsuario extends StatelessWidget {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitulo,
-                    style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12),
-                  ),
+                  if (subtitulo.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitulo,
+                      style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12),
+                    ),
+                  ],
                 ],
               ),
             ),

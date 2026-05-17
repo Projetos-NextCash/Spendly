@@ -83,19 +83,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     Column(
                       children: [
                         const SizedBox(height: 20),
-                        Text(
-                          'NextCash',
-                          style: TextStyle(
-                            color: theme.primaryColor,
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 30),
                         SizedBox(
-                          height: 120,
+                          height: 250,
                           child: Image.asset(
-                            'assets/logo.png',
+                            'assets/logoSpendly.png',
                             errorBuilder: (_, __, ___) => Icon(
                               Icons.account_balance_wallet,
                               size: 80,
@@ -117,12 +108,16 @@ class _LoginScreenState extends State<LoginScreen> {
                           hint: 'exemplo@email.com',
                         ),
                         const SizedBox(height: 20),
+
+                        
                         _CampoTextoCustom(
                           label: 'Senha',
                           controller: _passwordController,
                           obscureText: true,
                           hint: '••••••••',
                         ),
+
+
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
@@ -185,7 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-class _CampoTextoCustom extends StatelessWidget {
+class _CampoTextoCustom extends StatefulWidget {
   final String label;
   final String hint;
   final TextEditingController controller;
@@ -201,22 +196,37 @@ class _CampoTextoCustom extends StatelessWidget {
   });
 
   @override
+  State<_CampoTextoCustom> createState() => __CampoTextoCustomState();
+}
+
+class __CampoTextoCustomState extends State<_CampoTextoCustom> {
+  bool _senhaOculta = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _senhaOculta = widget.obscureText;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: theme.textTheme.bodyLarge),
+        Text(
+          widget.label, 
+          style: theme.textTheme.bodyLarge),
         const SizedBox(height: 8),
 
         TextField(
-          controller: controller,
-          obscureText: obscureText,
-          keyboardType: keyboardType,
+          controller: widget.controller,
+          obscureText: _senhaOculta,
+          keyboardType: widget.keyboardType,
           style: theme.textTheme.bodyLarge,
           decoration: InputDecoration(
-            hintText: hint,
+            hintText: widget.hint,
             filled: true,
             fillColor: theme.cardColor,
             border: OutlineInputBorder(
@@ -224,7 +234,22 @@ class _CampoTextoCustom extends StatelessWidget {
               borderSide: BorderSide.none,
             ),
             contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+
+             suffixIcon: widget.obscureText
+                ? IconButton(
+                    icon: Icon(
+                      _senhaOculta
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _senhaOculta = !_senhaOculta;
+                      });
+                    },
+                  )
+                : null,
           ),
         ),
       ],
@@ -279,3 +304,4 @@ class _BotaoPrincipal extends StatelessWidget {
     );
   }
 }
+

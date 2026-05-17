@@ -7,6 +7,10 @@ import 'screens/tela_registro.dart';
 import 'screens/tela_transacao.dart';
 import 'screens/tela_usuario.dart';
 import 'screens/tela_objetivos.dart';
+import 'screens/tela_sobreNos.dart';
+import 'screens/tela_tutorial.dart';
+
+import 'storage/auth_check.dart';
 
 import 'core/theme_controller.dart';
 import 'src/app_temas.dart';
@@ -38,8 +42,9 @@ class MyApp extends StatelessWidget {
           theme: app_temas.claro,
           darkTheme: app_temas.escuro,
           themeMode: mode,
-          initialRoute: '/login',
+          initialRoute: '/auth-check',
           routes: {
+            '/auth-check': (context) => const AuthCheck(),
             '/login': (context) => const LoginScreen(),
             '/home': (context) => const TelaHome(),
             '/objetivos': (context) => const TelaObjetivos(),
@@ -47,6 +52,8 @@ class MyApp extends StatelessWidget {
             '/registro': (context) => const RegisterScreen(),
             '/transacao': (context) => const TelaTransacao(),
             '/usuario': (context) => const TelaUsuario(),
+            '/sobrenos': (context) => const TelaSobreNos(),
+            '/tutorial': (context) => const TelaTutorial()
           },
         );
       },

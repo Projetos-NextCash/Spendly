@@ -1,80 +1,68 @@
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalStorage {
-  static const FlutterSecureStorage _storage = FlutterSecureStorage();
+  static const _tokenKey = "token";
+  static const _usuarioKey = "usuario";
 
-  // ==========================
-  // KEYS
-  // ==========================
-  static const String _keyUsuario = "usuario";
-  static const String _keyToken = "jwt";
+  static const _primeiroAcessoKey = "primeiro_acesso";
 
-  // ==========================
-  // USUÁRIO
-  // ==========================
-  static Future<void> salvarUsuario(Map<String, dynamic> usuario) async {
-    await _storage.write(
-      key: _keyUsuario,
-      value: jsonEncode(usuario),
-    );
-  }
+static Future<bool> deveMostrarBoasVindas() async {
+  final prefs = await SharedPreferences.getInstance();
 
-  static Future<Map<String, dynamic>?> getUsuario() async {
-    final data = await _storage.read(key: _keyUsuario);
+  return prefs.getBool(_primeiroAcessoKey) ?? true;
+}
 
-    if (data == null) return null;
+static Future<void> marcarBoasVindasComoVista() async {
+  final prefs = await SharedPreferences.getInstance();
 
-    try {
-      return jsonDecode(data);
-    } catch (e) {
-      return null;
-    }
-  }
+  await prefs.setBool(_primeiroAcessoKey, false);
+}
 
-  static Future<void> removerUsuario() async {
-    await _storage.delete(key: _keyUsuario);
-  }
-
-  // ==========================
-  // TOKEN (JWT)
-  // ==========================
-  static Future<void> salvarToken(String token) async {
-    await _storage.write(
-      key: _keyToken,
-      value: token,
-    );
-  }
-
-  static Future<String?> getToken() async {
-    return await _storage.read(key: _keyToken);
-  }
-
-  static Future<void> removerToken() async {
-    await _storage.delete(key: _keyToken);
-  }
-
-  // ==========================
-  // SESSÃO (COMPLETO)
-  // ==========================
+  // salvar sessão
   static Future<void> salvarSessao({
     required Map<String, dynamic> usuario,
     required String token,
   }) async {
-    await salvarUsuario(usuario);
-    await salvarToken(token);
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString(_tokenKey, token);
+    await prefs.setString(
+      _usuarioKey,
+      jsonEncode(usuario),
+    );
   }
 
-  static Future<void> limparSessao() async {
-    await removerUsuario();
-    await removerToken();
+  // pegar token
+  static Future<String?> getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    return prefs.getString(_tokenKey);
   }
 
-  // ==========================
-  // VERIFICAÇÕES
-  // ==========================
-  static Future<bool> isLogado() async {
+  // pegar usuário
+  static Future<Map<String, dynamic>?> getUsuario() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final usuarioJson = prefs.getString(_usuarioKey);
+
+    if (usuarioJson == null) return null;
+
+    return jsonDecode(usuarioJson);
+  }
+
+  // limpar sessão
+   static Future<void> limparSessao() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.remove(_tokenKey);
+    await prefs.remove(_usuarioKey);
+  }
+
+  // verificar login
+  static Future<bool> estaLogado() async {
     final token = await getToken();
+
     return token != null;
   }
 }

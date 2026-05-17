@@ -149,7 +149,7 @@ class _TelaRecsenhaState extends State<TelaRecsenha> {
   }
 }
 
-class _CampoRecuperacao extends StatelessWidget {
+class _CampoRecuperacao extends StatefulWidget {
   final String label;
   final String hint;
   final TextEditingController controller;
@@ -165,31 +165,68 @@ class _CampoRecuperacao extends StatelessWidget {
   });
 
   @override
+  State<_CampoRecuperacao> createState() => _CampoRecuperacaoState();
+}
+
+class _CampoRecuperacaoState extends State<_CampoRecuperacao> {
+  late bool _senhaOculta;
+
+  @override
+  void initState() {
+    super.initState();
+    _senhaOculta = widget.obscureText;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: theme.textTheme.bodyLarge),
+        Text(
+          widget.label,
+          style: theme.textTheme.bodyLarge,
+        ),
 
         const SizedBox(height: 8),
 
         TextField(
-          controller: controller,
-          obscureText: obscureText,
-          keyboardType: keyboardType,
+          controller: widget.controller,
+          obscureText: _senhaOculta,
+          keyboardType: widget.keyboardType,
           style: theme.textTheme.bodyLarge,
+
           decoration: InputDecoration(
-            hintText: hint,
+            hintText: widget.hint,
             filled: true,
             fillColor: theme.cardColor,
+
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+
+            // botão do olhinho
+            suffixIcon: widget.obscureText
+                ? IconButton(
+                    icon: Icon(
+                      _senhaOculta
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _senhaOculta = !_senhaOculta;
+                      });
+                    },
+                  )
+                : null,
           ),
         ),
       ],

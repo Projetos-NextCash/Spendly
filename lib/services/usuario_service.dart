@@ -228,6 +228,6 @@ class UsuarioService {
   // LOGOUT
   // ==========================
   Future<void> logout() async {
-    await local.LocalStorage.limparSessao();
-  }
+  await local.LocalStorage.limparSessao();
+}
 }

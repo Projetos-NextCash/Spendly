@@ -7,6 +7,7 @@ import 'tela_usuario.dart';
 import 'package:app_nextcash/services/usuario_service.dart';
 import 'package:app_nextcash/services/transacao_service.dart';
 import 'tela_extrato.dart';
+import '../storage/local_storage.dart' as local;
 
 class TelaHome extends StatefulWidget {
   const TelaHome({super.key});
@@ -27,13 +28,102 @@ class _TelaHomeState extends State<TelaHome> {
   @override
   void initState() {
     super.initState();
+
     _inicializarDados();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      verificarPrimeiroAcesso();
+    });
+  }
+
+  Future<void> verificarPrimeiroAcesso() async {
+    final mostrar = await local.LocalStorage.deveMostrarBoasVindas();
+
+    if (!mostrar || !mounted) return;
+
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        final theme = Theme.of(context);
+
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: const [
+              Icon(Icons.waving_hand, color: Color(0xFF00C853)),
+              SizedBox(width: 8),
+              Text("Bem-vindo(a)!"),
+            ],
+          ),
+          content: const Text(
+            "Seu cadastro foi realizado com sucesso.\n\n"
+            "Você pode acessar seu perfil para conhecer "
+            "o tutorial do aplicativo e saber mais sobre nós.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await local.LocalStorage.marcarBoasVindasComoVista();
+
+                if (!mounted) return;
+
+                Navigator.pop(context);
+              },
+              child: const Text("Agora não"),
+            ),
+
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00C853),
+                foregroundColor: Colors.black,
+              ),
+              onPressed: () async {
+                await local.LocalStorage.marcarBoasVindasComoVista();
+
+                if (!mounted) return;
+
+                Navigator.pop(context);
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TelaUsuario()),
+                );
+              },
+              child: const Text("Ver perfil"),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _inicializarDados() async {
     setState(() => carregando = true);
     await Future.wait([carregarUsuario(), carregarTransacoes()]);
     if (mounted) setState(() => carregando = false);
+  }
+
+  Future<void> atualizarUsuario() async {
+    final tokenData = await UsuarioService().getUsuarioFromToken();
+
+    if (tokenData == null) return;
+
+    final id = tokenData["id"];
+
+    final usuario = await UsuarioService().buscarPorId(id);
+
+    if (!mounted) return;
+
+    setState(() {
+      nomeUsuario = usuario["usuario"]["nome"] ?? "Usuário";
+    });
   }
 
   String _abreviarNome(String nome) {
@@ -49,10 +139,16 @@ class _TelaHomeState extends State<TelaHome> {
   }
 
   Future<void> carregarUsuario() async {
-    final usuario = await UsuarioService().getUsuarioFromToken();
-    if (usuario != null && mounted) {
-      setState(() => nomeUsuario = usuario["nome"]);
-    }
+    final tokenData = await UsuarioService().getUsuarioFromToken();
+    if (tokenData == null) return;
+
+    final usuario = await UsuarioService().buscarPorId(tokenData["id"]);
+
+    if (!mounted) return;
+
+    setState(() {
+      nomeUsuario = usuario["usuario"]["nome"] ?? "";
+    });
   }
 
   Future<void> carregarTransacoes() async {
@@ -133,7 +229,7 @@ class _TelaHomeState extends State<TelaHome> {
       try {
         // Chamando seu método apagarTransacao exatamente como você enviou
         final resultado = await TransacaoService().apagarTransacao(id);
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(resultado["message"] ?? "Sucesso!")),
@@ -174,16 +270,39 @@ class _TelaHomeState extends State<TelaHome> {
           maxY: maxValor * 1.2,
           titlesData: FlTitlesData(
             show: true,
-            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+            rightTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
             bottomTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
                 getTitlesWidget: (value, meta) {
-                  const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+                  const meses = [
+                    'Jan',
+                    'Fev',
+                    'Mar',
+                    'Abr',
+                    'Mai',
+                    'Jun',
+                    'Jul',
+                    'Ago',
+                    'Set',
+                    'Out',
+                    'Nov',
+                    'Dez',
+                  ];
                   int idx = value.toInt() - 1;
                   if (idx < 0 || idx >= 12) return const SizedBox();
-                  return Text(meses[idx], style: TextStyle(color: theme.textTheme.bodyMedium?.color, fontSize: 10));
+                  return Text(
+                    meses[idx],
+                    style: TextStyle(
+                      color: theme.textTheme.bodyMedium?.color,
+                      fontSize: 10,
+                    ),
+                  );
                 },
               ),
             ),
@@ -195,8 +314,16 @@ class _TelaHomeState extends State<TelaHome> {
             return BarChartGroupData(
               x: mes,
               barRods: [
-                BarChartRodData(toY: receitasPorMes[mes] ?? 0, color: theme.primaryColor, width: 7),
-                BarChartRodData(toY: despesasPorMes[mes] ?? 0, color: Colors.redAccent, width: 7),
+                BarChartRodData(
+                  toY: receitasPorMes[mes] ?? 0,
+                  color: theme.primaryColor,
+                  width: 7,
+                ),
+                BarChartRodData(
+                  toY: despesasPorMes[mes] ?? 0,
+                  color: Colors.redAccent,
+                  width: 7,
+                ),
               ],
             );
           }),
@@ -226,14 +353,20 @@ class _TelaHomeState extends State<TelaHome> {
                   const SizedBox(height: 20),
                   CardSaldo(saldoTexto: _formatarReal(saldoTotal)),
                   const SizedBox(height: 12),
-                  CardDespesa(despesaTexto: 'Total de saídas: ${_formatarReal(despesaTotal)}'),
+                  CardDespesa(
+                    despesaTexto:
+                        'Total de saídas: ${_formatarReal(despesaTotal)}',
+                  ),
                   const SizedBox(height: 28),
                   Text(
                     'Movimentações recentes',
-                    style: theme.textTheme.bodyLarge?.copyWith(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   ...despesasRecentes.map(
                     (item) => ItemDespesaWidget(
                       item: item,
@@ -246,7 +379,10 @@ class _TelaHomeState extends State<TelaHome> {
                   const SizedBox(height: 32),
                   Text(
                     'Visão Mensal (6 meses)',
-                    style: theme.textTheme.bodyLarge?.copyWith(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   _buildGrafico(theme),
@@ -270,12 +406,22 @@ class _TelaHomeState extends State<TelaHome> {
             Text("Bem-vindo(a),", style: theme.textTheme.bodyMedium),
             Text(
               _abreviarNome(nomeUsuario),
-              style: theme.textTheme.bodyLarge?.copyWith(fontSize: 22, fontWeight: FontWeight.bold),
+              style: theme.textTheme.bodyLarge?.copyWith(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
         GestureDetector(
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaUsuario())),
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const TelaUsuario()),
+            );
+
+            await atualizarUsuario();
+          },
           child: CircleAvatar(
             backgroundColor: theme.cardColor,
             child: Icon(Icons.person_outline, color: theme.primaryColor),
@@ -291,18 +437,30 @@ class _TelaHomeState extends State<TelaHome> {
       children: [
         BotaoAcao(
           icone: Icons.add,
-          texto: 'Novo',
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaTransacao())).then((_) => carregarTransacoes()),
+          texto: 'Nova\nMovimentação',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const TelaTransacao()),
+          ).then((_) => carregarTransacoes()),
+          textalignment: TextAlign.center,
         ),
         BotaoAcao(
           icone: Icons.flag_outlined,
-          texto: 'Metas',
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaObjetivos())),
+          texto: 'Metas\n',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const TelaObjetivos()),
+          ),
+          textalignment: TextAlign.center,
         ),
         BotaoAcao(
           icone: Icons.bar_chart,
-          texto: 'Extrato',
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TelaExtrato())).then((_) => carregarTransacoes()),
+          texto: 'Hist. de\nMovimentações',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const TelaExtrato()),
+          ).then((_) => carregarTransacoes()),
+          textalignment: TextAlign.center,
         ),
       ],
     );
@@ -315,7 +473,12 @@ class DespesaRecente {
   final double valor;
   final String data;
 
-  DespesaRecente({required this.id, required this.nome, required this.valor, required this.data});
+  DespesaRecente({
+    required this.id,
+    required this.nome,
+    required this.valor,
+    required this.data,
+  });
 }
 
 class ItemDespesaWidget extends StatelessWidget {
@@ -344,7 +507,8 @@ class ItemDespesaWidget extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 18,
-            backgroundColor: (isDespesa ? Colors.red : Colors.green).withOpacity(0.1),
+            backgroundColor: (isDespesa ? Colors.red : Colors.green)
+                .withOpacity(0.1),
             child: Icon(
               isDespesa ? Icons.arrow_downward : Icons.arrow_upward,
               color: isDespesa ? Colors.red : Colors.green,
@@ -356,7 +520,13 @@ class ItemDespesaWidget extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.nome, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold, fontSize: 15)),
+                Text(
+                  item.nome,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
                 Text(item.data, style: theme.textTheme.bodySmall),
               ],
             ),
@@ -374,7 +544,11 @@ class ItemDespesaWidget extends StatelessWidget {
               const SizedBox(height: 4),
               GestureDetector(
                 onTap: onDelete,
-                child: const Icon(Icons.delete_outline, size: 18, color: Colors.grey),
+                child: const Icon(
+                  Icons.delete_outline,
+                  size: 18,
+                  color: Colors.grey,
+                ),
               ),
             ],
           ),
@@ -395,13 +569,22 @@ class CardSaldo extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: theme.cardColor, borderRadius: BorderRadius.circular(18)),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(18),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Dinheiro disponível', style: theme.textTheme.bodyMedium),
           const SizedBox(height: 8),
-          Text(saldoTexto, style: theme.textTheme.bodyLarge?.copyWith(fontSize: 28, fontWeight: FontWeight.bold)),
+          Text(
+            saldoTexto,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
@@ -417,7 +600,10 @@ class CardDespesa extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: theme.cardColor, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Row(
         children: [
           const Icon(Icons.trending_down, color: Colors.redAccent),
@@ -433,8 +619,15 @@ class BotaoAcao extends StatelessWidget {
   final IconData icone;
   final String texto;
   final VoidCallback? onTap;
+  final TextAlign textalignment;
 
-  const BotaoAcao({super.key, required this.icone, required this.texto, this.onTap});
+  const BotaoAcao({
+    super.key,
+    required this.icone,
+    required this.texto,
+    this.onTap,
+    this.textalignment = TextAlign.left,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -444,12 +637,20 @@ class BotaoAcao extends StatelessWidget {
       child: Column(
         children: [
           Container(
-            width: 56, height: 56,
-            decoration: BoxDecoration(color: theme.primaryColor, shape: BoxShape.circle),
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: theme.primaryColor,
+              shape: BoxShape.circle,
+            ),
             child: Icon(icone, color: Colors.black),
           ),
           const SizedBox(height: 8),
-          Text(texto, style: theme.textTheme.bodyMedium),
+          Text(
+            texto,
+            style: theme.textTheme.bodyMedium,
+            textAlign: textalignment,
+          ),
         ],
       ),
     );
