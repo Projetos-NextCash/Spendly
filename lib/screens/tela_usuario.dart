@@ -39,6 +39,70 @@ class _TelaUsuarioState extends State<TelaUsuario> {
   }
 }
 
+void _mostrarNotificacaoTopo(String mensagem) {
+    final overlay = Overlay.of(context);
+    final overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).padding.top + 20, // Distância do topo
+        left: 20,
+        right: 20,
+        child: Material(
+          color: Colors.transparent,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: -50.0, end: 0.0), // Efeito de descer
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOut,
+            builder: (context, value, child) {
+              return Transform.translate(
+                offset: Offset(0, value),
+                child: child,
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF00C853), // Verde de sucesso
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  )
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white, size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      mensagem,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(overlayEntry);
+
+    // Remove a notificação da tela após 3 segundos
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        overlayEntry.remove();
+      }
+    });
+  }
+
   Future<void> carregarUsuario() async {
   final usuarioLocal = await usuarioService.getUsuarioFromToken();
 
@@ -56,6 +120,7 @@ class _TelaUsuarioState extends State<TelaUsuario> {
     email = usuario["email"] ?? "";
   });
 }
+
 
   @override
   void initState() {
@@ -141,14 +206,20 @@ class _TelaUsuarioState extends State<TelaUsuario> {
                 titulo: "Dados cadastrados",
                 subtitulo: "Informações pessoais",
                 onTap: () async {
-                  await Navigator.push(
+                  // 1. Aguarda o retorno da tela de edição
+                  final atualizou = await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => const TelaEditarUsuario(),
                     ),
                   );
 
-                  if (mounted) {
+                  // 2. Se retornou true, mostra o alerta de cima e recarrega
+                  if (atualizou == true && mounted) {
+                    
+                    // Mostra a notificação bonitona descendo do topo!
+                    _mostrarNotificacaoTopo("Dados atualizados com sucesso!");
+
                     setState(() {
                       nome = "Carregando...";
                       email = "";
@@ -162,13 +233,18 @@ class _TelaUsuarioState extends State<TelaUsuario> {
                 icone: Icons.shield_outlined,
                 titulo: "Segurança",
                 subtitulo: "Senhas e acessos",
-                onTap: () {
-                  Navigator.push(
+                onTap: () async {
+                  // 1. Aguarda o retorno da tela de redefinição de senha
+                  final atualizouSenha = await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => const TelaRecsenha(),
                     ),
                   );
+
+                  if (atualizouSenha == true && mounted) {
+                    _mostrarNotificacaoTopo("Senha atualizada com sucesso!");
+                  }
                 },
               ),
 

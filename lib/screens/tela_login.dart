@@ -55,10 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _mostrarAlerta(String mensagem) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensagem),
-        behavior: SnackBarBehavior.floating,
-      ),
+      SnackBar(content: Text(mensagem), behavior: SnackBarBehavior.floating),
     );
   }
 
@@ -74,19 +71,20 @@ class _LoginScreenState extends State<LoginScreen> {
             return SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 20),
               child: ConstrainedBox(
-                constraints:
-                    BoxConstraints(minHeight: constraints.maxHeight - 40),
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - 40,
+                ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     /// TOPO
                     Column(
                       children: [
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 5),
                         SizedBox(
                           height: 250,
                           child: Image.asset(
-                            'assets/logoSpendly.png',
+                            'assets/logo_login.png',
                             errorBuilder: (_, __, ___) => Icon(
                               Icons.account_balance_wallet,
                               size: 80,
@@ -109,7 +107,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 20),
 
-                        
                         _CampoTextoCustom(
                           label: 'Senha',
                           controller: _passwordController,
@@ -117,15 +114,27 @@ class _LoginScreenState extends State<LoginScreen> {
                           hint: '••••••••',
                         ),
 
-
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
-                            onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const TelaRecsenha()),
-                            ),
+                            onPressed: () async {
+                              // 🌟 Aguarda o usuário terminar o fluxo na tela de recuperação
+                              final alterouSenhaSucesso =
+                                  await Navigator.push<bool>(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const TelaRecsenha(),
+                                    ),
+                                  );
+
+                              // Se o retorno for true, significa que a senha foi alterada com sucesso!
+                              if (alterouSenhaSucesso == true &&
+                                  context.mounted) {
+                                _mostrarAlerta(
+                                  "Suas credenciais foram atualizadas. Tente realizar o login",
+                                );
+                              }
+                            },
                             child: Text(
                               'Esqueceu a senha?',
                               style: TextStyle(color: theme.primaryColor),
@@ -140,8 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         _BotaoPrincipal(
                           texto: 'Entrar',
-                          onPressed:
-                              _estaCarregando ? null : _fazerLogin,
+                          onPressed: _estaCarregando ? null : _fazerLogin,
                           carregando: _estaCarregando,
                         ),
                         const SizedBox(height: 15),
@@ -150,7 +158,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           onPressed: () => Navigator.push(
                             context,
                             MaterialPageRoute(
-                                builder: (_) => const RegisterScreen()),
+                              builder: (_) => const RegisterScreen(),
+                            ),
                           ),
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size(double.infinity, 52),
@@ -215,9 +224,7 @@ class __CampoTextoCustomState extends State<_CampoTextoCustom> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          widget.label, 
-          style: theme.textTheme.bodyLarge),
+        Text(widget.label, style: theme.textTheme.bodyLarge),
         const SizedBox(height: 8),
 
         TextField(
@@ -233,15 +240,15 @@ class __CampoTextoCustomState extends State<_CampoTextoCustom> {
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
 
-             suffixIcon: widget.obscureText
+            suffixIcon: widget.obscureText
                 ? IconButton(
                     icon: Icon(
-                      _senhaOculta
-                          ? Icons.visibility_off
-                          : Icons.visibility,
+                      _senhaOculta ? Icons.visibility_off : Icons.visibility,
                     ),
                     onPressed: () {
                       setState(() {
@@ -304,4 +311,3 @@ class _BotaoPrincipal extends StatelessWidget {
     );
   }
 }
-

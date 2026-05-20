@@ -153,9 +153,8 @@ class _TelaCriarObjetivosState extends State<TelaCriarObjetivos> {
       }
 
       if (!mounted) return;
-
-      _mostrarAlerta("Objetivo salvo com sucesso!", sucesso: true);
       Navigator.pop(context, true);
+      
     } catch (_) {
       _mostrarAlerta("Erro ao salvar objetivo");
     } finally {
@@ -172,6 +171,7 @@ class _TelaCriarObjetivosState extends State<TelaCriarObjetivos> {
       ),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -277,34 +277,69 @@ class _CampoFormulario extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isEscuro = Theme.of(context).brightness == Brightness.dark;
+    final tema = Theme.of(context);
+    final isDark = tema.brightness == Brightness.dark;
+
+    final bg = isDark ? Colors.grey[850] : Colors.grey[100];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+        Text(
+          label,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: tema.textTheme.bodyLarge?.color,
+          ),
+        ),
         const SizedBox(height: 8),
+
         TextField(
           controller: controller,
           keyboardType: keyboardType,
           maxLines: maxLines,
-          onChanged: isMoeda ? (value) {
-            String numbers = value.replaceAll(RegExp(r'[^0-9]'), '');
-            if (numbers.isEmpty) {
-              controller.text = '';
-              return;
-            }
-            double valor = double.parse(numbers) / 100;
-            controller.text = valor.toStringAsFixed(2).replaceAll('.', ',');
-            controller.selection = TextSelection.fromPosition(TextPosition(offset: controller.text.length));
-          } : null,
+
+          // 💰 mantém sua lógica de moeda intacta
+          onChanged: isMoeda
+              ? (value) {
+                  String numbers = value.replaceAll(RegExp(r'[^0-9]'), '');
+                  if (numbers.isEmpty) {
+                    controller.text = '';
+                    return;
+                  }
+
+                  double valor = double.parse(numbers) / 100;
+
+                  controller.text =
+                      valor.toStringAsFixed(2).replaceAll('.', ',');
+
+                  controller.selection = TextSelection.fromPosition(
+                    TextPosition(offset: controller.text.length),
+                  );
+                }
+              : null,
+
+          style: TextStyle(
+            color: tema.textTheme.bodyLarge?.color,
+            fontWeight: FontWeight.w500,
+          ),
+
           decoration: InputDecoration(
             hintText: hint,
             prefixText: prefixText,
+
             filled: true,
-            fillColor: isEscuro ? const Color(0xFF2B2B2B) : Colors.grey[200],
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            fillColor: bg,
+
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
+
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
           ),
         ),
       ],

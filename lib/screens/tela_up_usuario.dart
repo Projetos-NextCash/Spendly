@@ -81,13 +81,8 @@ class _TelaEditarUsuarioState extends State<TelaEditarUsuario> {
       email: _emailController.text.trim(),
     );
 
-    if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Alterações salvas com sucesso!"),
-      ),
-    );
+    if (!mounted) return;
 
     Navigator.pop(context, true);
   } catch (e) {

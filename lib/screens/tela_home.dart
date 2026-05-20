@@ -36,6 +36,166 @@ class _TelaHomeState extends State<TelaHome> {
     });
   }
 
+  // 👇 NOVA NOTIFICAÇÃO PREMIUM DE META ALCANÇADA
+  void _mostrarPopupMetaAlcancada({required String nomeMeta}) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).padding.top + 12,
+        left: 16,
+        right: 16,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              // Um degradê moderno simulando conquista/ouro
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFF00C853),
+                  Color(0xFF00E676),
+                  Color(0xFFFFD700),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF00C853).withOpacity(0.4),
+                  blurRadius: 15,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                // Ícone de troféu animado/destacado
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: Colors.white24,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.emoji_events,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        "Parabéns! Meta Alcançada! 🎉",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "Você conquistou o objetivo: \"$nomeMeta\".",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        "Cada centavo poupado é um passo rumo à sua liberdade financeira. Continue com essa disciplina incrível!",
+                        style: TextStyle(
+                          color: Color.fromRGBO(255, 255, 255, 0.94),
+                          fontWeight: FontWeight.w500,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(overlayEntry);
+
+    // Fica visível por 5 segundos para dar tempo do usuário ler a mensagem bonita
+    Future.delayed(const Duration(seconds: 5), () {
+      if (overlayEntry.mounted) {
+        overlayEntry.remove();
+      }
+    });
+  }
+
+  void _mostrarNotificacaoTopo({
+    required bool sucesso,
+    required String mensagem,
+  }) {
+    final overlay = Overlay.of(context);
+
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).padding.top + 12,
+        left: 16,
+        right: 16,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: sucesso ? const Color(0xFF00C853) : Colors.redAccent,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  sucesso ? Icons.check_circle : Icons.error_outline,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    mensagem,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(overlayEntry);
+
+    Future.delayed(const Duration(seconds: 3), () {
+      overlayEntry.remove();
+    });
+  }
+
   Future<void> verificarPrimeiroAcesso() async {
     final mostrar = await local.LocalStorage.deveMostrarBoasVindas();
 
@@ -49,8 +209,6 @@ class _TelaHomeState extends State<TelaHome> {
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        final theme = Theme.of(context);
-
         return AlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
@@ -180,13 +338,21 @@ class _TelaHomeState extends State<TelaHome> {
       }
     }
 
-    final recentes = transacoes.reversed.take(5).toList();
+    transacoes.sort((a, b) {
+      return DateTime.parse(
+        b["data_transacao"],
+      ).compareTo(DateTime.parse(a["data_transacao"]));
+    });
+
+    final recentes = transacoes.take(5).toList();
+
     for (var t in recentes) {
       final dataApi = DateTime.parse(t["data_transacao"]).toLocal();
+
       lista.add(
         DespesaRecente(
           id: t["id"].toString(),
-          nome: t["categoria"],
+          nome: t["categoria"] ?? "Sem categoria",
           valor: (t["valor"] as num).toDouble(),
           data:
               "${dataApi.day.toString().padLeft(2, '0')}/${dataApi.month.toString().padLeft(2, '0')}",
@@ -205,7 +371,6 @@ class _TelaHomeState extends State<TelaHome> {
     }
   }
 
-  // --- LÓGICA DE APAGAR ATUALIZADA ---
   Future<void> _confirmarExclusao(String id) async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -227,21 +392,18 @@ class _TelaHomeState extends State<TelaHome> {
 
     if (confirmar == true) {
       try {
-        // Chamando seu método apagarTransacao exatamente como você enviou
-        final resultado = await TransacaoService().apagarTransacao(id);
+        await TransacaoService().apagarTransacao(id);
+        await carregarTransacoes();
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(resultado["message"] ?? "Sucesso!")),
-          );
-          carregarTransacoes(); // Recarrega os dados da tela
-        }
+        _mostrarNotificacaoTopo(
+          sucesso: true,
+          mensagem: "Movimentação excluída com sucesso",
+        );
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Erro ao apagar transação.")),
-          );
-        }
+        _mostrarNotificacaoTopo(
+          sucesso: false,
+          mensagem: "Erro ao excluir movimentação",
+        );
       }
     }
   }
@@ -405,7 +567,7 @@ class _TelaHomeState extends State<TelaHome> {
           children: [
             Text("Bem-vindo(a),", style: theme.textTheme.bodyMedium),
             Text(
-              _abreviarNome(nomeUsuario),
+              _viewNome(nomeUsuario),
               style: theme.textTheme.bodyLarge?.copyWith(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
@@ -419,7 +581,6 @@ class _TelaHomeState extends State<TelaHome> {
               context,
               MaterialPageRoute(builder: (_) => const TelaUsuario()),
             );
-
             await atualizarUsuario();
           },
           child: CircleAvatar(
@@ -431,6 +592,8 @@ class _TelaHomeState extends State<TelaHome> {
     );
   }
 
+  String _viewNome(String nome) => _abreviarNome(nome);
+
   Widget _buildAcoesRapidas(ThemeData theme) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -438,19 +601,41 @@ class _TelaHomeState extends State<TelaHome> {
         BotaoAcao(
           icone: Icons.add,
           texto: 'Nova\nMovimentação',
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const TelaTransacao()),
-          ).then((_) => carregarTransacoes()),
+          onTap: () async {
+            final resultado = await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const TelaTransacao()),
+            );
+
+            if (!mounted || resultado == null) return;
+
+            await Future.delayed(const Duration(milliseconds: 300));
+            await carregarTransacoes();
+
+            // 👇 O FILTRO DE METAS ALCANÇADAS PODE ENTRAR AQUI
+            // Se o retorno da tela de transações indicar que uma meta foi batida:
+            if (resultado["metaAlcancada"] == true &&
+                resultado["nomeMeta"] != null) {
+              _mostrarPopupMetaAlcancada(nomeMeta: resultado["nomeMeta"]);
+            } else {
+              _mostrarNotificacaoTopo(
+                sucesso: resultado["sucesso"],
+                mensagem: resultado["mensagem"],
+              );
+            }
+          },
           textalignment: TextAlign.center,
         ),
         BotaoAcao(
           icone: Icons.flag_outlined,
           texto: 'Metas\n',
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const TelaObjetivos()),
-          ),
+          onTap: () =>
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const TelaObjetivos()),
+              ).then(
+                (_) => carregarTransacoes(),
+              ), // Recarrega se voltar da tela de metas
           textalignment: TextAlign.center,
         ),
         BotaoAcao(

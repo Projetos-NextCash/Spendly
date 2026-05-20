@@ -49,13 +49,8 @@ class _TelaRecsenhaState extends State<TelaRecsenha> {
       );
 
       if (!mounted) return;
-
-      _mostrarSnackBar("Senha alterada com sucesso!");
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
+      Navigator.pop(context, true);
+      
     } catch (e) {
       _mostrarSnackBar(e.toString());
     } finally {
