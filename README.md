@@ -55,12 +55,12 @@ Usabilidade da aplicação
 ---
 
 ## 👥 Equipe
-Daniela Pereira Bosco
-Fábio Ariga
-João Carlos Pereira
-Lucas Rossi
-Vinicius
-Welber Junior
+- Daniela Pereira Bosco
+- Fábio Ariga
+- João Carlos Pereira
+- Lucas Rossi
+- Vinicius
+- Welber Junior
 
 ---
 
