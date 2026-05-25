@@ -82,6 +82,3 @@ Projeto acadêmico desenvolvido para a disciplina de Desenvolvimento de Software
   <img src="https://github.com/user-attachments/assets/8d5ee3f9-e40c-4c9d-87d2-a1fb4333e66e" width="150"/>
   <img src="https://github.com/user-attachments/assets/3d4b355e-011d-4496-8d87-4e8fc121bf7f" width="150"/>
 </p>
-
-(adicionar prints das telas do aplicativo aqui.)
-
