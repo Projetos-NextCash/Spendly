@@ -73,17 +73,14 @@ Projeto acadêmico desenvolvido para a disciplina de Desenvolvimento de Software
 ## 📸 Imagens do Projeto
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/ccc0ae51-3efe-4d1f-96d3-207375b48fe1" width="250"/>
-  <img src="https://github.com/user-attachments/assets/cdecb0d7-9b51-44a8-b380-2faeac1c1b0f" width="250"/>
+  <img src="https://github.com/user-attachments/assets/ccc0ae51-3efe-4d1f-96d3-207375b48fe1" width="150"/>
+  <img src="https://github.com/user-attachments/assets/cdecb0d7-9b51-44a8-b380-2faeac1c1b0f" width="150"/>
+  <img src="https://github.com/user-attachments/assets/88badb94-c1a7-48d5-b3a9-d1f09b6c7b45" width="150"/>
 </p>
 
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/88badb94-c1a7-48d5-b3a9-d1f09b6c7b45" width="250"/>
-  <img src="https://github.com/user-attachments/assets/8d5ee3f9-e40c-4c9d-87d2-a1fb4333e66e" width="250"/>
-</p>
-
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/3d4b355e-011d-4496-8d87-4e8fc121bf7f" width="250"/>
+<p align="center">  
+  <img src="https://github.com/user-attachments/assets/8d5ee3f9-e40c-4c9d-87d2-a1fb4333e66e" width="150"/>
+  <img src="https://github.com/user-attachments/assets/3d4b355e-011d-4496-8d87-4e8fc121bf7f" width="150"/>
 </p>
 
 (adicionar prints das telas do aplicativo aqui.)
