@@ -1,17 +1,76 @@
-# app_nextcash
+# Spendly 💸
 
-A new Flutter project.
+Aplicativo de controle financeiro pessoal desenvolvido pela NextCash.
 
-## Getting Started
+O projeto foi criado com o objetivo de ajudar usuários a organizarem suas finanças de maneira simples, rápida e intuitiva, permitindo o controle de receitas, despesas e metas financeiras diretamente pelo celular.
 
-This project is a starting point for a Flutter application.
+---
 
-A few resources to get you started if this is your first Flutter project:
+## 📱 Funcionalidades
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+- Cadastro e login de usuários
+- Recuperação de senha
+- Registro de receitas e despesas
+- Consulta de extrato
+- Edição e exclusão de transações
+- Cadastro de metas financeiras
+- Acompanhamento de objetivos
+- Dashboard com saldo e gráficos
+- Categorias financeiras
+- Atualização de dados do usuário
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+---
+
+## 🛠 Tecnologias Utilizadas
+
+### Frontend
+- Flutter
+- Dart
+
+### Backend
+- Node.js
+- Express.js
+
+### Banco de Dados
+- Supabase
+- PostgreSQL
+
+### Ferramentas
+- GitHub
+- Trello
+- Figma
+
+---
+
+## 🧪 Testes Realizados
+Foram realizados testes de:
+CRUD de usuários
+CRUD de transações
+CRUD de objetivos financeiros
+Login e autenticação
+Recuperação de senha
+Navegação entre telas
+Usabilidade da aplicação
+
+---
+
+## 👥 Equipe
+Daniela Pereira Bosco
+Fábio Ariga
+João Carlos Pereira
+Lucas Rossi
+Vinicius
+Welber Junior
+
+---
+
+## 🎯 Objetivo do Projeto
+
+Projeto acadêmico desenvolvido para a disciplina de Desenvolvimento de Software Multiplataforma da FATEC Zona Sul.
+
+---
+
+## 📸 Imagens do Projeto
+
+(adicionar prints das telas do aplicativo aqui.)
+
