@@ -56,11 +56,11 @@ Foram realizados testes de:
 
 ## 👥 Equipe
 - Daniela Pereira Bosco
-- Fábio Ariga
-- João Carlos Pereira
-- Lucas Rossi
-- Vinicius
-- Welber Junior
+- Fábio Jun Ariga
+- João Carlos Souza Pereira
+- Lucas Rossi de Oliveira
+- Vinicius de Almeida Romagnolo
+- Welber Eugenio dos Santos Junior
 
 ---
 
