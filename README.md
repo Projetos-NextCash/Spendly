@@ -44,13 +44,13 @@ O projeto foi criado com o objetivo de ajudar usuários a organizarem suas finan
 
 ## 🧪 Testes Realizados
 Foram realizados testes de:
-CRUD de usuários
-CRUD de transações
-CRUD de objetivos financeiros
-Login e autenticação
-Recuperação de senha
-Navegação entre telas
-Usabilidade da aplicação
+- CRUD de usuários
+- CRUD de transações
+- CRUD de objetivos financeiros
+- Login e autenticação
+- Recuperação de senha
+- Navegação entre telas
+- Usabilidade da aplicação
 
 ---
 
